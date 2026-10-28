@@ -90,7 +90,7 @@
         </table>
       </div>
       <p id="records-empty" class="muted small hidden">No hay registros este mes.</p>
-      <p class="muted small">Pulsa en un día para ver o borrar sus fichajes.</p>
+      <p class="muted small">Pulsa en un día para ver o borrar sus fichajes, o marcarlo como festivo.</p>
     </section>
 
     <section class="card">
@@ -107,6 +107,19 @@
           </select>
           <button type="submit" class="btn btn-small">Añadir</button>
         </form>
+      </details>
+      <details>
+        <summary>Festivos y vacaciones</summary>
+        <form id="dayoff-form" class="manual">
+          <input type="date" id="dayoff-date" required>
+          <select id="dayoff-type">
+            <option value="holiday">Festivo</option>
+            <option value="vacation">Vacaciones</option>
+            <option value="">Día laborable (quitar marca)</option>
+          </select>
+          <button type="submit" class="btn btn-small">Guardar</button>
+        </form>
+        <p class="muted small">Un día festivo o de vacaciones tiene jornada 0h: no cuenta para el objetivo semanal ni para el saldo.</p>
       </details>
       <details>
         <summary>Exportar / copia de seguridad</summary>

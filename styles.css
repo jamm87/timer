@@ -197,6 +197,21 @@ input, select {
 .neg { color: var(--neg); }
 .warn { color: var(--pause); font-size: 0.8rem; }
 
+.tag {
+  display: inline-block;
+  margin-left: 4px;
+  padding: 1px 8px;
+  border-radius: 999px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: #fff;
+}
+.tag.holiday { background: var(--extra); }
+.tag.vacation { background: var(--resume); }
+
+.day-off-actions { display: flex; gap: 6px; margin-top: 8px; }
+.ghost.small { font-size: 0.8rem; padding: 4px 10px; }
+
 .detail td { background: var(--row-hover); }
 .events { display: flex; flex-wrap: wrap; gap: 6px; }
 .chip {

@@ -3,9 +3,11 @@
 // Horas de jornada por día de la semana (0 = domingo ... 6 = sábado)
 const TARGET_HOURS = { 0: 0, 1: 8.5, 2: 8.5, 3: 8.5, 4: 8.5, 5: 6, 6: 0 };
 const STORAGE_KEY = 'fichaje.events.v1';
+const DAYS_OFF_KEY = 'fichaje.daysoff.v1';
 const HOUR = 3600000;
 
 const TYPE_LABEL = { in: 'Entrada', pause: 'Pausa', resume: 'Reanudar', out: 'Salida' };
+const DAY_OFF_LABEL = { holiday: 'Festivo', vacation: 'Vacaciones' };
 const WEEKDAYS = ['dom', 'lun', 'mar', 'mié', 'jue', 'vie', 'sáb'];
 
 // ---------- Almacenamiento ----------
@@ -27,7 +29,32 @@ function isValidEvent(e) {
   return e && typeof e.ts === 'number' && TYPE_LABEL[e.type];
 }
 
+// Días sin jornada: { 'AAAA-MM-DD': 'holiday' | 'vacation' }
+function loadDaysOff() {
+  try {
+    const data = JSON.parse(localStorage.getItem(DAYS_OFF_KEY) || '{}');
+    return cleanDaysOff(data);
+  } catch {
+    return {};
+  }
+}
+
+function cleanDaysOff(data) {
+  const out = {};
+  if (data && typeof data === 'object' && !Array.isArray(data)) {
+    for (const [k, v] of Object.entries(data)) {
+      if (/^\d{4}-\d{2}-\d{2}$/.test(k) && DAY_OFF_LABEL[v]) out[k] = v;
+    }
+  }
+  return out;
+}
+
+function saveDaysOff() {
+  localStorage.setItem(DAYS_OFF_KEY, JSON.stringify(daysOff));
+}
+
 let events = loadEvents();
+let daysOff = loadDaysOff();
 
 // ---------- Utilidades de fecha ----------
 
@@ -44,6 +71,7 @@ function keyToDate(key) {
 }
 
 function targetFor(key) {
+  if (daysOff[key]) return 0;
   return (TARGET_HOURS[keyToDate(key).getDay()] || 0) * HOUR;
 }
 
@@ -111,7 +139,7 @@ function computeDay(key, now = Date.now()) {
     else paused += now - since;
   }
 
-  return { key, list, state, worked, paused, firstIn, lastOut, open: open && !isToday, target: targetFor(key) };
+  return { key, list, state, worked, paused, firstIn, lastOut, open: open && !isToday, target: targetFor(key), dayOff: daysOff[key] };
 }
 
 function currentState() {
@@ -145,6 +173,13 @@ function addEvent(type, ts) {
   events.push({ id: crypto.randomUUID ? crypto.randomUUID() : String(ts) + Math.random(), type, ts });
   events.sort((a, b) => a.ts - b.ts);
   saveEvents();
+  render();
+}
+
+function setDayOff(key, type) {
+  if (type) daysOff[key] = type;
+  else delete daysOff[key];
+  saveDaysOff();
   render();
 }
 
@@ -191,7 +226,9 @@ function renderToday() {
   const target = today.target;
   const done = today.worked;
   const left = target - done;
-  $('day-target').textContent = target ? `objetivo ${fmtDur(target)}` : 'día no laborable';
+  $('day-target').textContent = today.dayOff
+    ? DAY_OFF_LABEL[today.dayOff].toLowerCase()
+    : target ? `objetivo ${fmtDur(target)}` : 'día no laborable';
   $('day-done').textContent = fmtDur(done);
 
   let fillPct;
@@ -244,10 +281,7 @@ function renderTable() {
   const month = $('month').value;
   const now = Date.now();
   const todayKey = dayKey(now);
-  const keys = [...new Set(events.map((e) => dayKey(e.ts)))]
-    .filter((k) => k.startsWith(month))
-    .sort()
-    .reverse();
+  const keys = monthKeys(month).reverse();
 
   const body = $('records-body');
   body.innerHTML = '';
@@ -264,7 +298,7 @@ function renderTable() {
     const tr = document.createElement('tr');
     tr.className = 'day' + (key === todayKey ? ' today' : '');
     tr.innerHTML = `
-      <td>${WEEKDAYS[date.getDay()]} ${pad(date.getDate())}/${pad(date.getMonth() + 1)}</td>
+      <td>${WEEKDAYS[date.getDay()]} ${pad(date.getDate())}/${pad(date.getMonth() + 1)}${d.dayOff ? ` <span class="tag ${d.dayOff}">${DAY_OFF_LABEL[d.dayOff]}</span>` : ''}</td>
       <td>${d.firstIn ? fmtTime(d.firstIn) : '—'}</td>
       <td>${d.lastOut && d.state === 'off' ? fmtTime(d.lastOut) : d.open ? '<span class="warn">sin salida</span>' : '—'}</td>
       <td>${fmtDur(d.paused)}</td>
@@ -298,7 +332,21 @@ function renderTable() {
         chip.appendChild(del);
         wrap.appendChild(chip);
       }
+      const offActions = document.createElement('div');
+      offActions.className = 'day-off-actions';
+      const options = d.dayOff ? [[null, `Quitar ${DAY_OFF_LABEL[d.dayOff].toLowerCase()}`]] : Object.entries(DAY_OFF_LABEL).map(([t, l]) => [t, `Marcar ${l.toLowerCase()}`]);
+      for (const [type, label] of options) {
+        const btn = document.createElement('button');
+        btn.className = 'ghost small';
+        btn.textContent = label;
+        btn.addEventListener('click', (ev) => {
+          ev.stopPropagation();
+          setDayOff(key, type);
+        });
+        offActions.appendChild(btn);
+      }
       td.appendChild(wrap);
+      td.appendChild(offActions);
       detail.appendChild(td);
       body.appendChild(detail);
     }
@@ -309,6 +357,13 @@ function renderTable() {
     ? `<tr><td>Total</td><td></td><td></td><td></td><td>${fmtDur(totalWorked)}</td><td>${fmtDur(totalTarget)}</td><td class="${totalBalance >= 0 ? 'pos' : 'neg'}">${fmtSigned(totalBalance)}</td></tr>`
     : '';
   $('records-empty').classList.toggle('hidden', keys.length > 0);
+}
+
+// Días del mes con fichajes o marcados como festivo/vacaciones
+function monthKeys(month) {
+  return [...new Set([...events.map((e) => dayKey(e.ts)), ...Object.keys(daysOff)])]
+    .filter((k) => k.startsWith(month))
+    .sort();
 }
 
 // ---------- Exportar / importar ----------
@@ -324,12 +379,13 @@ function download(name, content, type) {
 
 function exportCsv() {
   const month = $('month').value;
-  const keys = [...new Set(events.map((e) => dayKey(e.ts)))].filter((k) => k.startsWith(month)).sort();
-  const rows = [['Fecha', 'Entrada', 'Salida', 'Pausas', 'Trabajado', 'Jornada', 'Saldo', 'Fichajes']];
+  const keys = monthKeys(month);
+  const rows = [['Fecha', 'Tipo', 'Entrada', 'Salida', 'Pausas', 'Trabajado', 'Jornada', 'Saldo', 'Fichajes']];
   for (const key of keys) {
     const d = computeDay(key);
     rows.push([
       key,
+      d.dayOff ? DAY_OFF_LABEL[d.dayOff] : 'Laborable',
       d.firstIn ? fmtTime(d.firstIn) : '',
       d.lastOut && d.state === 'off' ? fmtTime(d.lastOut) : '',
       fmtDur(d.paused),
@@ -344,7 +400,7 @@ function exportCsv() {
 }
 
 function exportJson() {
-  download(`fichajes-backup-${dayKey(Date.now())}.json`, JSON.stringify(events, null, 2), 'application/json');
+  download(`fichajes-backup-${dayKey(Date.now())}.json`, JSON.stringify({ version: 2, events, daysOff }, null, 2), 'application/json');
 }
 
 function importJson(file) {
@@ -352,11 +408,16 @@ function importJson(file) {
   reader.onload = () => {
     try {
       const data = JSON.parse(reader.result);
-      if (!Array.isArray(data)) throw new Error('formato');
-      const valid = data.filter(isValidEvent);
-      if (!confirm(`Se restaurarán ${valid.length} fichajes y se reemplazarán los actuales (${events.length}). ¿Continuar?`)) return;
+      // Acepta copias antiguas (solo lista de fichajes) y nuevas ({ events, daysOff })
+      const list = Array.isArray(data) ? data : data && data.events;
+      if (!Array.isArray(list)) throw new Error('formato');
+      const valid = list.filter(isValidEvent);
+      const newDaysOff = cleanDaysOff(Array.isArray(data) ? {} : data.daysOff);
+      if (!confirm(`Se restaurarán ${valid.length} fichajes y ${Object.keys(newDaysOff).length} días festivos/vacaciones, reemplazando los actuales. ¿Continuar?`)) return;
       events = valid.map((e) => ({ id: e.id || String(e.ts) + Math.random(), type: e.type, ts: e.ts })).sort((a, b) => a.ts - b.ts);
+      daysOff = newDaysOff;
       saveEvents();
+      saveDaysOff();
       render();
     } catch {
       alert('El fichero no es una copia válida.');
@@ -383,6 +444,7 @@ function init() {
   $('month').value = `${now.getFullYear()}-${pad(now.getMonth() + 1)}`;
   $('manual-date').value = dayKey(now.getTime());
   $('manual-time').value = fmtTime(now.getTime());
+  $('dayoff-date').value = dayKey(now.getTime());
 
   $('btn-in').addEventListener('click', () => punch('in'));
   $('btn-pause').addEventListener('click', () => punch('pause'));
@@ -399,6 +461,15 @@ function init() {
     addEvent($('manual-type').value, ts);
   });
 
+  $('dayoff-form').addEventListener('submit', (ev) => {
+    ev.preventDefault();
+    const key = $('dayoff-date').value;
+    if (!key) return;
+    setDayOff(key, $('dayoff-type').value || null);
+    $('month').value = key.slice(0, 7);
+    renderTable();
+  });
+
   $('export-csv').addEventListener('click', exportCsv);
   $('export-json').addEventListener('click', exportJson);
   $('import-json').addEventListener('change', (ev) => {
@@ -408,8 +479,9 @@ function init() {
 
   // Sincroniza si se ficha desde otra pestaña
   window.addEventListener('storage', (ev) => {
-    if (ev.key === STORAGE_KEY) {
+    if (ev.key === STORAGE_KEY || ev.key === DAYS_OFF_KEY) {
       events = loadEvents();
+      daysOff = loadDaysOff();
       render();
     }
   });
