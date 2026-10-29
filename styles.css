@@ -41,6 +41,9 @@ body {
 
 body.popup { width: 480px; }
 
+/* Tiempos y horas siempre de izquierda a derecha, también en árabe */
+.clock-big, .progress-foot strong { unicode-bidi: plaintext; }
+
 .app > * { min-width: 0; }
 
 .app {
@@ -117,6 +120,11 @@ h2 { margin: 0; font-size: 1.1rem; }
 .btn-out { background: var(--out); }
 .btn-small { padding: 8px 12px; font-size: 0.9rem; }
 
+.lang {
+  padding: 4px 6px;
+  font-size: 0.85rem;
+}
+
 .ghost {
   background: transparent;
   border: 1px solid var(--border);
@@ -184,7 +192,7 @@ input, select {
 }
 .records th, .records td {
   padding: 8px 6px;
-  text-align: left;
+  text-align: start;
   border-bottom: 1px solid var(--border);
   white-space: nowrap;
 }
@@ -199,7 +207,7 @@ input, select {
 
 .tag {
   display: inline-block;
-  margin-left: 4px;
+  margin-inline-start: 4px;
   padding: 1px 8px;
   border-radius: 999px;
   font-size: 0.72rem;
@@ -218,7 +226,8 @@ input, select {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  padding: 3px 4px 3px 10px;
+  padding-block: 3px;
+  padding-inline: 10px 4px;
   border-radius: 999px;
   color: #fff;
   font-size: 0.8rem;

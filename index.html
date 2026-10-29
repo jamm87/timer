@@ -14,31 +14,32 @@
   <main class="app">
     <header class="top">
       <div>
-        <h1>Fichaje</h1>
+        <h1 data-i18n="appName">Fichaje</h1>
         <p id="today-label" class="muted"></p>
       </div>
       <div class="top-actions">
+        <select id="lang" class="lang" data-i18n-aria="language" aria-label="Idioma"></select>
         <span id="status" class="status status-off">Fuera</span>
-        <button id="open-tab" class="ghost hidden" title="Abrir en pestaña">⤢</button>
+        <button id="open-tab" class="ghost hidden" data-i18n-title="openTab" title="Abrir en pestaña">⤢</button>
       </div>
     </header>
 
     <section class="card">
       <div class="clock">
         <span id="worked-live" class="clock-big">0:00:00</span>
-        <span class="muted">trabajado hoy</span>
+        <span class="muted" data-i18n="workedToday">trabajado hoy</span>
       </div>
 
       <div class="actions">
-        <button id="btn-in" class="btn btn-in">Entrada</button>
-        <button id="btn-pause" class="btn btn-pause">Pausa</button>
-        <button id="btn-resume" class="btn btn-resume">Reanudar</button>
-        <button id="btn-out" class="btn btn-out">Salida</button>
+        <button id="btn-in" class="btn btn-in" data-i18n="type.in">Entrada</button>
+        <button id="btn-pause" class="btn btn-pause" data-i18n="type.pause">Pausa</button>
+        <button id="btn-resume" class="btn btn-resume" data-i18n="type.resume">Reanudar</button>
+        <button id="btn-out" class="btn btn-out" data-i18n="type.out">Salida</button>
       </div>
 
       <div class="progress-block">
         <div class="progress-head">
-          <span>Jornada de hoy</span>
+          <span data-i18n="dayToday">Jornada de hoy</span>
           <span id="day-target" class="muted"></span>
         </div>
         <div class="bar" role="progressbar" aria-valuemin="0" aria-valuemax="100" id="day-bar">
@@ -46,96 +47,97 @@
           <div class="bar-extra" id="day-extra"></div>
         </div>
         <div class="progress-foot">
-          <span><strong id="day-done">0h 00m</strong> consumido</span>
-          <span id="day-left-wrap"><strong id="day-left">0h 00m</strong> <span id="day-left-label">restante</span></span>
+          <span><strong id="day-done">0h 00m</strong> <span data-i18n="consumed">consumido</span></span>
+          <span id="day-left-wrap"><strong id="day-left">0h 00m</strong> <span id="day-left-label" data-i18n="remaining">restante</span></span>
         </div>
         <p id="day-eta" class="muted small"></p>
       </div>
 
       <div class="progress-block">
         <div class="progress-head">
-          <span>Semana</span>
+          <span data-i18n="week">Semana</span>
           <span id="week-target" class="muted"></span>
         </div>
         <div class="bar bar-thin">
           <div class="bar-fill" id="week-fill"></div>
         </div>
         <div class="progress-foot small">
-          <span><strong id="week-done">0h 00m</strong> consumido</span>
-          <span><strong id="week-left">0h 00m</strong> restante</span>
+          <span><strong id="week-done">0h 00m</strong> <span data-i18n="consumed">consumido</span></span>
+          <span><strong id="week-left">0h 00m</strong> <span data-i18n="remaining">restante</span></span>
         </div>
       </div>
     </section>
 
     <section class="card">
       <div class="section-head">
-        <h2>Registros</h2>
-        <input type="month" id="month" aria-label="Mes">
+        <h2 data-i18n="records">Registros</h2>
+        <input type="month" id="month" data-i18n-aria="month" aria-label="Mes">
       </div>
       <div class="table-wrap">
         <table class="records">
           <thead>
             <tr>
-              <th>Fecha</th>
-              <th>Entrada</th>
-              <th>Salida</th>
-              <th>Pausas</th>
-              <th>Trabajado</th>
-              <th>Jornada</th>
-              <th>Saldo</th>
+              <th data-i18n="col.date">Fecha</th>
+              <th data-i18n="col.in">Entrada</th>
+              <th data-i18n="col.out">Salida</th>
+              <th data-i18n="col.pauses">Pausas</th>
+              <th data-i18n="col.worked">Trabajado</th>
+              <th data-i18n="col.target">Jornada</th>
+              <th data-i18n="col.balance">Saldo</th>
             </tr>
           </thead>
           <tbody id="records-body"></tbody>
           <tfoot id="records-foot"></tfoot>
         </table>
       </div>
-      <p id="records-empty" class="muted small hidden">No hay registros este mes.</p>
-      <p class="muted small">Pulsa en un día para ver o borrar sus fichajes, o marcarlo como festivo.</p>
+      <p id="records-empty" class="muted small hidden" data-i18n="noRecords">No hay registros este mes.</p>
+      <p class="muted small" data-i18n="tableHint">Pulsa en un día para ver o borrar sus fichajes, o marcarlo como festivo.</p>
     </section>
 
     <section class="card">
       <details>
-        <summary>Añadir fichaje manual</summary>
+        <summary data-i18n="manual.title">Añadir fichaje manual</summary>
         <form id="manual-form" class="manual">
           <input type="date" id="manual-date" required>
           <input type="time" id="manual-time" required>
           <select id="manual-type">
-            <option value="in">Entrada</option>
-            <option value="pause">Pausa</option>
-            <option value="resume">Reanudar</option>
-            <option value="out">Salida</option>
+            <option value="in" data-i18n="type.in">Entrada</option>
+            <option value="pause" data-i18n="type.pause">Pausa</option>
+            <option value="resume" data-i18n="type.resume">Reanudar</option>
+            <option value="out" data-i18n="type.out">Salida</option>
           </select>
-          <button type="submit" class="btn btn-small">Añadir</button>
+          <button type="submit" class="btn btn-small" data-i18n="add">Añadir</button>
         </form>
       </details>
       <details>
-        <summary>Festivos y vacaciones</summary>
+        <summary data-i18n="dayoff.title">Festivos y vacaciones</summary>
         <form id="dayoff-form" class="manual">
           <input type="date" id="dayoff-date" required>
           <select id="dayoff-type">
-            <option value="holiday">Festivo</option>
-            <option value="vacation">Vacaciones</option>
-            <option value="">Día laborable (quitar marca)</option>
+            <option value="holiday" data-i18n="dayoff.holiday">Festivo</option>
+            <option value="vacation" data-i18n="dayoff.vacation">Vacaciones</option>
+            <option value="" data-i18n="dayoff.workday">Día laborable (quitar marca)</option>
           </select>
-          <button type="submit" class="btn btn-small">Guardar</button>
+          <button type="submit" class="btn btn-small" data-i18n="save">Guardar</button>
         </form>
-        <p class="muted small">Un día festivo o de vacaciones tiene jornada 0h: no cuenta para el objetivo semanal ni para el saldo.</p>
+        <p class="muted small" data-i18n="dayoff.hint">Un día festivo o de vacaciones tiene jornada 0h: no cuenta para el objetivo semanal ni para el saldo.</p>
       </details>
       <details>
-        <summary>Exportar / copia de seguridad</summary>
+        <summary data-i18n="export.title">Exportar / copia de seguridad</summary>
         <div class="manual">
-          <button id="export-csv" class="btn btn-small">Exportar mes (CSV)</button>
-          <button id="export-json" class="btn btn-small">Copia completa (JSON)</button>
+          <button id="export-csv" class="btn btn-small" data-i18n="export.csv">Exportar mes (CSV)</button>
+          <button id="export-json" class="btn btn-small" data-i18n="export.json">Copia completa (JSON)</button>
           <label class="btn btn-small file-btn">
-            Restaurar JSON
+            <span data-i18n="export.restore">Restaurar JSON</span>
             <input type="file" id="import-json" accept="application/json,.json" hidden>
           </label>
         </div>
-        <p class="muted small">Los datos se guardan solo en este navegador. Haz copias de vez en cuando.</p>
+        <p class="muted small" data-i18n="export.hint">Los datos se guardan solo en este navegador. Haz copias de vez en cuando.</p>
       </details>
     </section>
   </main>
 
+  <script src="i18n.js"></script>
   <script src="app.js"></script>
 </body>
 </html>
