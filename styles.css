@@ -120,6 +120,7 @@ h2 { margin: 0; font-size: 1.1rem; }
 .btn-out { background: var(--out); }
 .btn-small { padding: 8px 12px; font-size: 0.9rem; }
 
+.lang-wrap { display: inline-flex; align-items: center; gap: 4px; }
 .lang {
   padding: 4px 6px;
   font-size: 0.85rem;
