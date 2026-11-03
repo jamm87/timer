@@ -1,11 +1,12 @@
-// Service worker: permite usar la webapp sin conexión
-const CACHE = 'fichaje-v4';
+// Service worker: permite usar la webapp sin conexión.
+// Al publicar cambios, sube la versión aquí y en los ?v= de index.html.
+const CACHE = 'fichaje-v5';
 const ASSETS = [
   './',
   'index.html',
-  'styles.css',
-  'i18n.js',
-  'app.js',
+  'styles.css?v=5',
+  'i18n.js?v=5',
+  'app.js?v=5',
   'manifest.webmanifest',
   'icons/icon-32.png',
   'icons/icon-192.png',
@@ -28,7 +29,8 @@ self.addEventListener('activate', (event) => {
 self.addEventListener('fetch', (event) => {
   if (event.request.method !== 'GET') return;
   event.respondWith(
-    fetch(event.request)
+    // no-cache: revalida con el servidor en vez de usar la caché HTTP del navegador
+    fetch(event.request, { cache: 'no-cache' })
       .then((res) => {
         const copy = res.clone();
         caches.open(CACHE).then((cache) => cache.put(event.request, copy));
