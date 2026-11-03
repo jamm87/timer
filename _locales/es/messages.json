@@ -1,0 +1,8 @@
+{
+  "appName": {
+    "message": "Fichaje"
+  },
+  "appDesc": {
+    "message": "Control de fichaje: entrada, salida, pausas y progreso de la jornada."
+  }
+}

@@ -1,9 +1,10 @@
 // Service worker: permite usar la webapp sin conexión
-const CACHE = 'fichaje-v1';
+const CACHE = 'fichaje-v4';
 const ASSETS = [
   './',
   'index.html',
   'styles.css',
+  'i18n.js',
   'app.js',
   'manifest.webmanifest',
   'icons/icon-32.png',

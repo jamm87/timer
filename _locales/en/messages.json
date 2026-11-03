@@ -1,0 +1,8 @@
+{
+  "appName": {
+    "message": "Time Clock"
+  },
+  "appDesc": {
+    "message": "Time tracking: clock in, clock out, breaks and workday progress."
+  }
+}

@@ -41,6 +41,9 @@ body {
 
 body.popup { width: 480px; }
 
+/* Tiempos y horas siempre de izquierda a derecha, también en árabe */
+.clock-big, .progress-foot strong { unicode-bidi: plaintext; }
+
 .app > * { min-width: 0; }
 
 .app {
@@ -117,6 +120,11 @@ h2 { margin: 0; font-size: 1.1rem; }
 .btn-out { background: var(--out); }
 .btn-small { padding: 8px 12px; font-size: 0.9rem; }
 
+.lang {
+  padding: 4px 6px;
+  font-size: 0.85rem;
+}
+
 .ghost {
   background: transparent;
   border: 1px solid var(--border);
@@ -184,7 +192,7 @@ input, select {
 }
 .records th, .records td {
   padding: 8px 6px;
-  text-align: left;
+  text-align: start;
   border-bottom: 1px solid var(--border);
   white-space: nowrap;
 }
@@ -197,13 +205,29 @@ input, select {
 .neg { color: var(--neg); }
 .warn { color: var(--pause); font-size: 0.8rem; }
 
+.tag {
+  display: inline-block;
+  margin-inline-start: 4px;
+  padding: 1px 8px;
+  border-radius: 999px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: #fff;
+}
+.tag.holiday { background: var(--extra); }
+.tag.vacation { background: var(--resume); }
+
+.day-off-actions { display: flex; gap: 6px; margin-top: 8px; }
+.ghost.small { font-size: 0.8rem; padding: 4px 10px; }
+
 .detail td { background: var(--row-hover); }
 .events { display: flex; flex-wrap: wrap; gap: 6px; }
 .chip {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  padding: 3px 4px 3px 10px;
+  padding-block: 3px;
+  padding-inline: 10px 4px;
   border-radius: 999px;
   color: #fff;
   font-size: 0.8rem;
@@ -238,3 +262,51 @@ summary { cursor: pointer; font-weight: 600; padding: 4px 0; }
   .actions { grid-template-columns: repeat(2, 1fr); }
   .clock-big { font-size: 2.2rem; }
 }
+
+/* ---------- Tareas ---------- */
+.day-nav { display: flex; align-items: center; gap: 6px; }
+#todo-day { cursor: pointer; font-variant-numeric: tabular-nums; min-width: 9ch; text-align: center; }
+[dir="rtl"] .nav-arrow { transform: scaleX(-1); }
+
+.todo-add { display: flex; gap: 8px; margin-bottom: 8px; }
+.todo-add input { flex: 1; min-width: 0; }
+
+.todo-list { list-style: none; margin: 0; padding: 0; }
+.todo-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 0;
+  border-bottom: 1px solid var(--border);
+}
+.todo-item:last-child { border-bottom: 0; }
+.todo-item input[type="checkbox"] { width: 18px; height: 18px; accent-color: var(--in); flex: none; }
+.todo-text {
+  flex: 1;
+  min-width: 0;
+  border: 1px solid transparent;
+  background: transparent;
+}
+.todo-text:hover, .todo-text:focus { border-color: var(--border); }
+.todo-item.done .todo-text { text-decoration: line-through; color: var(--muted); }
+.todo-del {
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 0.9rem;
+  opacity: 0;
+  flex: none;
+}
+.todo-item:hover .todo-del, .todo-del:focus { opacity: 1; }
+@media (hover: none) { .todo-del { opacity: 1; } }
+
+.todo-foot {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.saved { color: var(--pos); font-size: 0.85rem; align-self: center; }

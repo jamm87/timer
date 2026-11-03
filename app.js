@@ -3,10 +3,14 @@
 // Horas de jornada por día de la semana (0 = domingo ... 6 = sábado)
 const TARGET_HOURS = { 0: 0, 1: 8.5, 2: 8.5, 3: 8.5, 4: 8.5, 5: 6, 6: 0 };
 const STORAGE_KEY = 'fichaje.events.v1';
+const DAYS_OFF_KEY = 'fichaje.daysoff.v1';
+const TODOS_KEY = 'fichaje.todos.v1';
 const HOUR = 3600000;
 
-const TYPE_LABEL = { in: 'Entrada', pause: 'Pausa', resume: 'Reanudar', out: 'Salida' };
-const WEEKDAYS = ['dom', 'lun', 'mar', 'mié', 'jue', 'vie', 'sáb'];
+const EVENT_TYPES = ['in', 'pause', 'resume', 'out'];
+const DAY_OFF_TYPES = ['holiday', 'vacation'];
+const typeLabel = (type) => t(`type.${type}`);
+const dayOffLabel = (type) => t(`dayoff.${type}`);
 
 // ---------- Almacenamiento ----------
 
@@ -24,10 +28,66 @@ function saveEvents() {
 }
 
 function isValidEvent(e) {
-  return e && typeof e.ts === 'number' && TYPE_LABEL[e.type];
+  return e && typeof e.ts === 'number' && EVENT_TYPES.includes(e.type);
 }
 
+// Días sin jornada: { 'AAAA-MM-DD': 'holiday' | 'vacation' }
+function loadDaysOff() {
+  try {
+    const data = JSON.parse(localStorage.getItem(DAYS_OFF_KEY) || '{}');
+    return cleanDaysOff(data);
+  } catch {
+    return {};
+  }
+}
+
+function cleanDaysOff(data) {
+  const out = {};
+  if (data && typeof data === 'object' && !Array.isArray(data)) {
+    for (const [k, v] of Object.entries(data)) {
+      if (/^\d{4}-\d{2}-\d{2}$/.test(k) && DAY_OFF_TYPES.includes(v)) out[k] = v;
+    }
+  }
+  return out;
+}
+
+function saveDaysOff() {
+  localStorage.setItem(DAYS_OFF_KEY, JSON.stringify(daysOff));
+}
+
+// Tareas por día: { 'AAAA-MM-DD': [{ id, text, done }] }
+function loadTodos() {
+  try {
+    return cleanTodos(JSON.parse(localStorage.getItem(TODOS_KEY) || '{}'));
+  } catch {
+    return {};
+  }
+}
+
+function cleanTodos(data) {
+  const out = {};
+  if (data && typeof data === 'object' && !Array.isArray(data)) {
+    for (const [k, list] of Object.entries(data)) {
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(k) || !Array.isArray(list)) continue;
+      const items = list
+        .filter((x) => x && typeof x.text === 'string')
+        .map((x) => ({ id: x.id || newId(), text: x.text, done: !!x.done }));
+      if (items.length) out[k] = items;
+    }
+  }
+  return out;
+}
+
+function saveTodos() {
+  for (const k of Object.keys(todos)) if (!todos[k].length) delete todos[k];
+  localStorage.setItem(TODOS_KEY, JSON.stringify(todos));
+}
+
+const newId = () => (crypto.randomUUID ? crypto.randomUUID() : String(Date.now()) + Math.random());
+
 let events = loadEvents();
+let daysOff = loadDaysOff();
+let todos = loadTodos();
 
 // ---------- Utilidades de fecha ----------
 
@@ -44,6 +104,7 @@ function keyToDate(key) {
 }
 
 function targetFor(key) {
+  if (daysOff[key]) return 0;
   return (TARGET_HOURS[keyToDate(key).getDay()] || 0) * HOUR;
 }
 
@@ -55,7 +116,7 @@ function fmtTime(ts) {
 function fmtDur(ms) {
   const neg = ms < 0;
   const totalMin = Math.floor(Math.abs(ms) / 60000);
-  return `${neg ? '-' : ''}${Math.floor(totalMin / 60)}h ${pad(totalMin % 60)}m`;
+  return (neg ? '-' : '') + t('dur', { h: Math.floor(totalMin / 60), m: pad(totalMin % 60) });
 }
 
 function fmtClock(ms) {
@@ -111,7 +172,7 @@ function computeDay(key, now = Date.now()) {
     else paused += now - since;
   }
 
-  return { key, list, state, worked, paused, firstIn, lastOut, open: open && !isToday, target: targetFor(key) };
+  return { key, list, state, worked, paused, firstIn, lastOut, open: open && !isToday, target: targetFor(key), dayOff: daysOff[key] };
 }
 
 function currentState() {
@@ -142,16 +203,23 @@ function punch(type) {
 }
 
 function addEvent(type, ts) {
-  events.push({ id: crypto.randomUUID ? crypto.randomUUID() : String(ts) + Math.random(), type, ts });
+  events.push({ id: newId(), type, ts });
   events.sort((a, b) => a.ts - b.ts);
   saveEvents();
+  render();
+}
+
+function setDayOff(key, type) {
+  if (type) daysOff[key] = type;
+  else delete daysOff[key];
+  saveDaysOff();
   render();
 }
 
 function deleteEvent(id) {
   const e = events.find((x) => x.id === id);
   if (!e) return;
-  if (!confirm(`¿Borrar el fichaje "${TYPE_LABEL[e.type]}" de las ${fmtTime(e.ts)}?`)) return;
+  if (!confirm(t('confirmDelete', { type: typeLabel(e.type), time: fmtTime(e.ts) }))) return;
   events = events.filter((x) => x.id !== id);
   saveEvents();
   render();
@@ -171,13 +239,13 @@ function renderToday() {
   const now = new Date();
   const today = computeDay(dayKey(now.getTime()), now.getTime());
 
-  $('today-label').textContent = now.toLocaleDateString('es-ES', {
+  $('today-label').textContent = now.toLocaleDateString(locale(), {
     weekday: 'long', day: 'numeric', month: 'long', year: 'numeric',
   });
 
   const status = $('status');
   status.className = `status status-${today.state}`;
-  status.textContent = { off: 'Fuera', working: 'Trabajando', paused: 'En pausa' }[today.state];
+  status.textContent = t(`status.${today.state}`);
 
   const allowed = ALLOWED[today.state];
   $('btn-in').disabled = !allowed.includes('in');
@@ -191,7 +259,9 @@ function renderToday() {
   const target = today.target;
   const done = today.worked;
   const left = target - done;
-  $('day-target').textContent = target ? `objetivo ${fmtDur(target)}` : 'día no laborable';
+  $('day-target').textContent = today.dayOff
+    ? dayOffLabel(today.dayOff)
+    : target ? t('target', { d: fmtDur(target) }) : t('nonWorkingDay');
   $('day-done').textContent = fmtDur(done);
 
   let fillPct;
@@ -212,19 +282,20 @@ function renderToday() {
 
   if (target && left < 0) {
     $('day-left').textContent = fmtDur(-left);
-    $('day-left-label').textContent = 'extra';
+    $('day-left-label').textContent = t('extra');
   } else {
     $('day-left').textContent = fmtDur(Math.max(left, 0));
-    $('day-left-label').textContent = 'restante';
+    $('day-left-label').textContent = t('remaining');
   }
 
   let eta = '';
   if (target && left > 0) {
-    if (today.state === 'working') eta = `Salida estimada a las ${fmtTime(now.getTime() + left)} (${Math.round((done / target) * 100)}%)`;
-    else if (today.state === 'paused') eta = `En pausa desde las ${fmtTime(today.list.at(-1).ts)} · ${Math.round((done / target) * 100)}% completado`;
-    else if (done > 0) eta = `${Math.round((done / target) * 100)}% completado`;
+    const pct = Math.round((done / target) * 100);
+    if (today.state === 'working') eta = t('eta.working', { time: fmtTime(now.getTime() + left), pct });
+    else if (today.state === 'paused') eta = t('eta.paused', { time: fmtTime(today.list.at(-1).ts), pct });
+    else if (done > 0) eta = t('eta.pct', { pct });
   } else if (target && left <= 0 && done > 0) {
-    eta = '¡Jornada completada!';
+    eta = t('eta.done');
   }
   $('day-eta').textContent = eta;
 
@@ -232,22 +303,20 @@ function renderToday() {
   const week = weekKeys(now).map((k) => computeDay(k, now.getTime()));
   const weekTarget = week.reduce((s, d) => s + d.target, 0);
   const weekDone = week.reduce((s, d) => s + d.worked, 0);
-  $('week-target').textContent = `objetivo ${fmtDur(weekTarget)}`;
+  $('week-target').textContent = t('target', { d: fmtDur(weekTarget) });
   $('week-done').textContent = fmtDur(weekDone);
   $('week-left').textContent = fmtDur(Math.max(weekTarget - weekDone, 0));
   $('week-fill').style.width = `${weekTarget ? Math.min(weekDone / weekTarget, 1) * 100 : 0}%`;
 
-  document.title = today.state === 'off' ? 'Fichaje' : `${fmtClock(today.worked)} · Fichaje`;
+  document.title = today.state === 'off' ? t('appName') : `${fmtClock(today.worked)} · ${t('appName')}`;
 }
 
 function renderTable() {
   const month = $('month').value;
   const now = Date.now();
   const todayKey = dayKey(now);
-  const keys = [...new Set(events.map((e) => dayKey(e.ts)))]
-    .filter((k) => k.startsWith(month))
-    .sort()
-    .reverse();
+  const keys = monthKeys(month).reverse();
+  const weekday = new Intl.DateTimeFormat(locale(), { weekday: 'short' });
 
   const body = $('records-body');
   body.innerHTML = '';
@@ -264,9 +333,9 @@ function renderTable() {
     const tr = document.createElement('tr');
     tr.className = 'day' + (key === todayKey ? ' today' : '');
     tr.innerHTML = `
-      <td>${WEEKDAYS[date.getDay()]} ${pad(date.getDate())}/${pad(date.getMonth() + 1)}</td>
+      <td>${weekday.format(date)} ${pad(date.getDate())}/${pad(date.getMonth() + 1)}${d.dayOff ? ` <span class="tag ${d.dayOff}">${dayOffLabel(d.dayOff)}</span>` : ''}</td>
       <td>${d.firstIn ? fmtTime(d.firstIn) : '—'}</td>
-      <td>${d.lastOut && d.state === 'off' ? fmtTime(d.lastOut) : d.open ? '<span class="warn">sin salida</span>' : '—'}</td>
+      <td>${d.lastOut && d.state === 'off' ? fmtTime(d.lastOut) : d.open ? `<span class="warn">${t('noExit')}</span>` : '—'}</td>
       <td>${fmtDur(d.paused)}</td>
       <td>${fmtDur(d.worked)}</td>
       <td>${fmtDur(d.target)}</td>
@@ -287,10 +356,10 @@ function renderTable() {
       for (const e of d.list) {
         const chip = document.createElement('span');
         chip.className = `chip ${e.type}`;
-        chip.textContent = `${TYPE_LABEL[e.type]} ${fmtTime(e.ts)}`;
+        chip.textContent = `${typeLabel(e.type)} ${fmtTime(e.ts)}`;
         const del = document.createElement('button');
         del.textContent = '✕';
-        del.title = 'Borrar fichaje';
+        del.title = t('deleteEntry');
         del.addEventListener('click', (ev) => {
           ev.stopPropagation();
           deleteEvent(e.id);
@@ -298,7 +367,23 @@ function renderTable() {
         chip.appendChild(del);
         wrap.appendChild(chip);
       }
+      const offActions = document.createElement('div');
+      offActions.className = 'day-off-actions';
+      const options = d.dayOff
+        ? [[null, t('dayoff.remove')]]
+        : [['holiday', t('dayoff.markHoliday')], ['vacation', t('dayoff.markVacation')]];
+      for (const [type, label] of options) {
+        const btn = document.createElement('button');
+        btn.className = 'ghost small';
+        btn.textContent = label;
+        btn.addEventListener('click', (ev) => {
+          ev.stopPropagation();
+          setDayOff(key, type);
+        });
+        offActions.appendChild(btn);
+      }
       td.appendChild(wrap);
+      td.appendChild(offActions);
       detail.appendChild(td);
       body.appendChild(detail);
     }
@@ -306,9 +391,134 @@ function renderTable() {
 
   const totalBalance = totalWorked - totalTarget;
   $('records-foot').innerHTML = keys.length
-    ? `<tr><td>Total</td><td></td><td></td><td></td><td>${fmtDur(totalWorked)}</td><td>${fmtDur(totalTarget)}</td><td class="${totalBalance >= 0 ? 'pos' : 'neg'}">${fmtSigned(totalBalance)}</td></tr>`
+    ? `<tr><td>${t('total')}</td><td></td><td></td><td></td><td>${fmtDur(totalWorked)}</td><td>${fmtDur(totalTarget)}</td><td class="${totalBalance >= 0 ? 'pos' : 'neg'}">${fmtSigned(totalBalance)}</td></tr>`
     : '';
   $('records-empty').classList.toggle('hidden', keys.length > 0);
+}
+
+// ---------- Tareas ----------
+
+// Desplazamiento en días respecto a hoy del día que se muestra en la lista de tareas
+let todoOffset = 0;
+
+function todoKey() {
+  const d = new Date();
+  d.setDate(d.getDate() + todoOffset);
+  return dayKey(d.getTime());
+}
+
+function shortDate(key) {
+  const date = keyToDate(key);
+  const weekday = new Intl.DateTimeFormat(locale(), { weekday: 'short' }).format(date);
+  return `${weekday} ${pad(date.getDate())}/${pad(date.getMonth() + 1)}`;
+}
+
+// Último día anterior a `key` con tareas sin hacer
+function previousPending(key) {
+  const prev = Object.keys(todos).filter((k) => k < key).sort().reverse();
+  for (const k of prev) {
+    const pending = todos[k].filter((x) => !x.done);
+    if (pending.length) return { key: k, pending };
+  }
+  return null;
+}
+
+function addTodo(text) {
+  const key = todoKey();
+  (todos[key] ||= []).push({ id: newId(), text, done: false });
+  saveTodos();
+  renderTodos();
+}
+
+function updateTodo(key, id, changes) {
+  const item = (todos[key] || []).find((x) => x.id === id);
+  if (!item) return;
+  Object.assign(item, changes);
+  saveTodos();
+}
+
+function removeTodo(key, id) {
+  todos[key] = (todos[key] || []).filter((x) => x.id !== id);
+  saveTodos();
+  renderTodos();
+}
+
+// Mueve las tareas pendientes del último día con pendientes al día mostrado
+function carryTodos() {
+  const key = todoKey();
+  const from = previousPending(key);
+  if (!from) return;
+  todos[from.key] = todos[from.key].filter((x) => x.done);
+  (todos[key] ||= []).push(...from.pending);
+  saveTodos();
+  renderTodos();
+}
+
+function renderTodos() {
+  const key = todoKey();
+  const list = todos[key] || [];
+  $('todo-day').textContent = todoOffset === 0 ? `${t('todo.today')} · ${shortDate(key)}` : shortDate(key);
+
+  const ul = $('todo-list');
+  ul.innerHTML = '';
+  for (const item of list) {
+    const li = document.createElement('li');
+    li.className = 'todo-item' + (item.done ? ' done' : '');
+
+    const check = document.createElement('input');
+    check.type = 'checkbox';
+    check.checked = item.done;
+    check.addEventListener('change', () => {
+      updateTodo(key, item.id, { done: check.checked });
+      li.classList.toggle('done', check.checked);
+      renderTodoFoot();
+    });
+
+    // El texto se edita en el sitio y se guarda mientras se escribe
+    const text = document.createElement('input');
+    text.type = 'text';
+    text.className = 'todo-text';
+    text.value = item.text;
+    text.maxLength = 200;
+    text.addEventListener('input', () => updateTodo(key, item.id, { text: text.value }));
+    text.addEventListener('keydown', (ev) => {
+      if (ev.key === 'Enter') text.blur();
+    });
+    text.addEventListener('blur', () => {
+      if (!text.value.trim()) removeTodo(key, item.id);
+    });
+
+    const del = document.createElement('button');
+    del.className = 'todo-del';
+    del.textContent = '✕';
+    del.title = t('todo.delete');
+    del.setAttribute('aria-label', t('todo.delete'));
+    del.addEventListener('click', () => removeTodo(key, item.id));
+
+    li.append(check, text, del);
+    ul.appendChild(li);
+  }
+  $('todo-empty').classList.toggle('hidden', list.length > 0);
+  renderTodoFoot();
+}
+
+function renderTodoFoot() {
+  const key = todoKey();
+  const list = todos[key] || [];
+  const done = list.filter((x) => x.done).length;
+  $('todo-count').textContent = list.length ? t('todo.count', { done, total: list.length }) : '';
+
+  const from = todoOffset >= 0 ? previousPending(key) : null;
+  const carry = $('todo-carry');
+  carry.classList.toggle('hidden', !from);
+  if (from) carry.textContent = t('todo.carry', { n: from.pending.length, date: shortDate(from.key) });
+}
+
+// Días del mes con fichajes o marcados como festivo/vacaciones
+function monthKeys(month) {
+  return [...new Set([...events.map((e) => dayKey(e.ts)), ...Object.keys(daysOff)])]
+    .filter((k) => k.startsWith(month))
+    .sort();
 }
 
 // ---------- Exportar / importar ----------
@@ -324,19 +534,20 @@ function download(name, content, type) {
 
 function exportCsv() {
   const month = $('month').value;
-  const keys = [...new Set(events.map((e) => dayKey(e.ts)))].filter((k) => k.startsWith(month)).sort();
-  const rows = [['Fecha', 'Entrada', 'Salida', 'Pausas', 'Trabajado', 'Jornada', 'Saldo', 'Fichajes']];
+  const keys = monthKeys(month);
+  const rows = [['date', 'type', 'in', 'out', 'pauses', 'worked', 'target', 'balance', 'events'].map((c) => t(`col.${c}`))];
   for (const key of keys) {
     const d = computeDay(key);
     rows.push([
       key,
+      d.dayOff ? dayOffLabel(d.dayOff) : t('workday'),
       d.firstIn ? fmtTime(d.firstIn) : '',
       d.lastOut && d.state === 'off' ? fmtTime(d.lastOut) : '',
       fmtDur(d.paused),
       fmtDur(d.worked),
       fmtDur(d.target),
       fmtSigned(d.worked - d.target),
-      d.list.map((e) => `${TYPE_LABEL[e.type]} ${fmtTime(e.ts)}`).join(' | '),
+      d.list.map((e) => `${typeLabel(e.type)} ${fmtTime(e.ts)}`).join(' | '),
     ]);
   }
   const csv = rows.map((r) => r.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(';')).join('\r\n');
@@ -344,7 +555,7 @@ function exportCsv() {
 }
 
 function exportJson() {
-  download(`fichajes-backup-${dayKey(Date.now())}.json`, JSON.stringify(events, null, 2), 'application/json');
+  download(`fichajes-backup-${dayKey(Date.now())}.json`, JSON.stringify({ version: 3, events, daysOff, todos }, null, 2), 'application/json');
 }
 
 function importJson(file) {
@@ -352,14 +563,23 @@ function importJson(file) {
   reader.onload = () => {
     try {
       const data = JSON.parse(reader.result);
-      if (!Array.isArray(data)) throw new Error('formato');
-      const valid = data.filter(isValidEvent);
-      if (!confirm(`Se restaurarán ${valid.length} fichajes y se reemplazarán los actuales (${events.length}). ¿Continuar?`)) return;
+      // Acepta copias antiguas (solo lista de fichajes) y nuevas ({ events, daysOff })
+      const list = Array.isArray(data) ? data : data && data.events;
+      if (!Array.isArray(list)) throw new Error('formato');
+      const valid = list.filter(isValidEvent);
+      const newDaysOff = cleanDaysOff(Array.isArray(data) ? {} : data.daysOff);
+      const newTodos = cleanTodos(Array.isArray(data) ? {} : data.todos);
+      if (!confirm(t('confirmImport', { n: valid.length, d: Object.keys(newDaysOff).length }))) return;
       events = valid.map((e) => ({ id: e.id || String(e.ts) + Math.random(), type: e.type, ts: e.ts })).sort((a, b) => a.ts - b.ts);
+      daysOff = newDaysOff;
+      todos = newTodos;
       saveEvents();
+      saveDaysOff();
+      saveTodos();
       render();
+      renderTodos();
     } catch {
-      alert('El fichero no es una copia válida.');
+      alert(t('importError'));
     }
   };
   reader.readAsText(file);
@@ -368,6 +588,17 @@ function importJson(file) {
 // ---------- Inicio ----------
 
 function init() {
+  const langSelect = $('lang');
+  for (const [code, info] of Object.entries(LANGS)) {
+    langSelect.add(new Option(info.name, code, false, code === lang));
+  }
+  langSelect.addEventListener('change', () => {
+    setLang(langSelect.value);
+    render();
+    renderTodos();
+  });
+  applyTranslations();
+
   const params = new URLSearchParams(location.search);
   const isExtension = location.protocol === 'chrome-extension:';
   if (params.has('popup')) document.body.classList.add('popup');
@@ -383,6 +614,7 @@ function init() {
   $('month').value = `${now.getFullYear()}-${pad(now.getMonth() + 1)}`;
   $('manual-date').value = dayKey(now.getTime());
   $('manual-time').value = fmtTime(now.getTime());
+  $('dayoff-date').value = dayKey(now.getTime());
 
   $('btn-in').addEventListener('click', () => punch('in'));
   $('btn-pause').addEventListener('click', () => punch('pause'));
@@ -399,6 +631,46 @@ function init() {
     addEvent($('manual-type').value, ts);
   });
 
+  // Festivos: el selector muestra la marca de la fecha elegida y se guarda al cambiarlo
+  const syncDayOffType = () => {
+    $('dayoff-type').value = daysOff[$('dayoff-date').value] || '';
+  };
+  let savedTimer;
+  $('dayoff-form').addEventListener('submit', (ev) => ev.preventDefault());
+  $('dayoff-date').addEventListener('change', syncDayOffType);
+  $('dayoff-type').addEventListener('change', () => {
+    const key = $('dayoff-date').value;
+    if (!key) return;
+    setDayOff(key, $('dayoff-type').value || null);
+    $('month').value = key.slice(0, 7);
+    renderTable();
+    $('dayoff-saved').classList.remove('hidden');
+    clearTimeout(savedTimer);
+    savedTimer = setTimeout(() => $('dayoff-saved').classList.add('hidden'), 2000);
+  });
+  syncDayOffType();
+
+  $('todo-form').addEventListener('submit', (ev) => {
+    ev.preventDefault();
+    const text = $('todo-input').value.trim();
+    if (!text) return;
+    addTodo(text);
+    $('todo-input').value = '';
+  });
+  $('todo-prev').addEventListener('click', () => {
+    todoOffset--;
+    renderTodos();
+  });
+  $('todo-next').addEventListener('click', () => {
+    todoOffset++;
+    renderTodos();
+  });
+  $('todo-day').addEventListener('click', () => {
+    todoOffset = 0;
+    renderTodos();
+  });
+  $('todo-carry').addEventListener('click', carryTodos);
+
   $('export-csv').addEventListener('click', exportCsv);
   $('export-json').addEventListener('click', exportJson);
   $('import-json').addEventListener('change', (ev) => {
@@ -408,16 +680,34 @@ function init() {
 
   // Sincroniza si se ficha desde otra pestaña
   window.addEventListener('storage', (ev) => {
-    if (ev.key === STORAGE_KEY) {
-      events = loadEvents();
+    if (ev.key === LANG_KEY && STRINGS[ev.newValue]) {
+      lang = ev.newValue;
+      $('lang').value = lang;
+      applyTranslations();
       render();
+      renderTodos();
+    } else if (ev.key === STORAGE_KEY || ev.key === DAYS_OFF_KEY) {
+      events = loadEvents();
+      daysOff = loadDaysOff();
+      render();
+    } else if (ev.key === TODOS_KEY && !document.activeElement?.classList.contains('todo-text')) {
+      todos = loadTodos();
+      renderTodos();
     }
   });
 
   render();
+  renderTodos();
   setInterval(renderToday, 1000);
-  // Refresca la tabla cada minuto para que el día en curso se actualice
-  setInterval(renderTable, 60000);
+  // Refresca cada minuto para que el día en curso (y el cambio de día) se actualicen
+  let lastDay = dayKey(Date.now());
+  setInterval(() => {
+    renderTable();
+    if (dayKey(Date.now()) !== lastDay) {
+      lastDay = dayKey(Date.now());
+      if (!document.activeElement?.classList.contains('todo-text')) renderTodos();
+    }
+  }, 60000);
 
   if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {
     navigator.serviceWorker.register('sw.js').catch(() => {});
