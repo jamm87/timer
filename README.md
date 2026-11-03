@@ -16,9 +16,11 @@ Funciona como **extensión de Chrome** y como **webapp instalable (PWA)**. No ne
 - **Barra de progreso diaria** con el tiempo consumido, el restante y la hora estimada de salida. Si te pasas, el exceso aparece como horas extra.
 - **Cómputo semanal** frente al objetivo de la semana.
 - **Tabla mensual** con entrada, salida, pausas, tiempo trabajado, jornada y saldo de cada día, más el total del mes. Al pulsar un día ves sus fichajes y puedes borrarlos.
+- **Tareas del día.** Una pequeña lista de tareas por día en la misma pantalla: añadir, marcar como hecha, editar y borrar. Con las flechas puedes ver otros días, y con un botón traes a hoy las pendientes del último día.
 - **Festivos y vacaciones.** Un día marcado tiene jornada 0h y no cuenta para el objetivo semanal ni para el saldo.
+- **Guardado automático.** Todo se guarda al momento, sin botón de guardar.
 - **Fichajes manuales** para cuando se te olvida fichar.
-- **Exportación** del mes a CSV (se abre en Excel) y **copia de seguridad** completa en JSON.
+- **Exportación** del mes a CSV (se abre en Excel) y **copia de seguridad** completa en JSON (fichajes, festivos y tareas).
 - **5 idiomas:** español, inglés, francés, árabe (de derecha a izquierda) y chino. El idioma se detecta del navegador y se puede cambiar en la parte superior.
 - **Sin conexión.** La webapp funciona offline una vez instalada.
 - **Modo oscuro** automático y diseño adaptado al móvil.
@@ -93,6 +95,8 @@ Para añadir un idioma, añade una entrada en `LANGS` y `STRINGS` en [`i18n.js`]
 
 - Workday: 8h 30m Monday to Thursday, 6h on Friday (configurable in `TARGET_HOURS` in `app.js`).
 - Holidays and vacation days count as 0h.
+- A small daily to-do list, with a button to bring over unfinished tasks from the previous day.
+- Everything is saved automatically.
 - Manual entries, CSV export and JSON backup/restore.
 - Available in Spanish, English, French, Arabic and Chinese.
 - Works as a Chrome extension (load the folder unpacked from `chrome://extensions`) and as an installable, offline-capable PWA: https://jamm87.github.io/timer/

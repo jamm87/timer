@@ -262,3 +262,51 @@ summary { cursor: pointer; font-weight: 600; padding: 4px 0; }
   .actions { grid-template-columns: repeat(2, 1fr); }
   .clock-big { font-size: 2.2rem; }
 }
+
+/* ---------- Tareas ---------- */
+.day-nav { display: flex; align-items: center; gap: 6px; }
+#todo-day { cursor: pointer; font-variant-numeric: tabular-nums; min-width: 9ch; text-align: center; }
+[dir="rtl"] .nav-arrow { transform: scaleX(-1); }
+
+.todo-add { display: flex; gap: 8px; margin-bottom: 8px; }
+.todo-add input { flex: 1; min-width: 0; }
+
+.todo-list { list-style: none; margin: 0; padding: 0; }
+.todo-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 0;
+  border-bottom: 1px solid var(--border);
+}
+.todo-item:last-child { border-bottom: 0; }
+.todo-item input[type="checkbox"] { width: 18px; height: 18px; accent-color: var(--in); flex: none; }
+.todo-text {
+  flex: 1;
+  min-width: 0;
+  border: 1px solid transparent;
+  background: transparent;
+}
+.todo-text:hover, .todo-text:focus { border-color: var(--border); }
+.todo-item.done .todo-text { text-decoration: line-through; color: var(--muted); }
+.todo-del {
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 0.9rem;
+  opacity: 0;
+  flex: none;
+}
+.todo-item:hover .todo-del, .todo-del:focus { opacity: 1; }
+@media (hover: none) { .todo-del { opacity: 1; } }
+
+.todo-foot {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.saved { color: var(--pos); font-size: 0.85rem; align-self: center; }

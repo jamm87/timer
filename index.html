@@ -68,6 +68,27 @@
       </div>
     </section>
 
+    <section class="card todo-card">
+      <div class="section-head">
+        <h2 data-i18n="todo.title">Tareas del día</h2>
+        <div class="day-nav">
+          <button id="todo-prev" class="ghost nav-arrow" data-i18n-title="todo.prev" data-i18n-aria="todo.prev">‹</button>
+          <span id="todo-day"></span>
+          <button id="todo-next" class="ghost nav-arrow" data-i18n-title="todo.next" data-i18n-aria="todo.next">›</button>
+        </div>
+      </div>
+      <form id="todo-form" class="todo-add">
+        <input id="todo-input" type="text" autocomplete="off" maxlength="200" data-i18n-placeholder="todo.placeholder" placeholder="Nueva tarea…">
+        <button type="submit" class="btn btn-small" data-i18n="add">Añadir</button>
+      </form>
+      <ul id="todo-list" class="todo-list"></ul>
+      <p id="todo-empty" class="muted small hidden" data-i18n="todo.empty">Sin tareas para este día.</p>
+      <div class="todo-foot">
+        <span id="todo-count" class="muted small"></span>
+        <button id="todo-carry" class="ghost small hidden"></button>
+      </div>
+    </section>
+
     <section class="card">
       <div class="section-head">
         <h2 data-i18n="records">Registros</h2>
@@ -114,11 +135,11 @@
         <form id="dayoff-form" class="manual">
           <input type="date" id="dayoff-date" required>
           <select id="dayoff-type">
+            <option value="" data-i18n="workday">Laborable</option>
             <option value="holiday" data-i18n="dayoff.holiday">Festivo</option>
             <option value="vacation" data-i18n="dayoff.vacation">Vacaciones</option>
-            <option value="" data-i18n="dayoff.workday">Día laborable (quitar marca)</option>
           </select>
-          <button type="submit" class="btn btn-small" data-i18n="save">Guardar</button>
+          <span id="dayoff-saved" class="saved hidden" data-i18n="saved">Guardado ✓</span>
         </form>
         <p class="muted small" data-i18n="dayoff.hint">Un día festivo o de vacaciones tiene jornada 0h: no cuenta para el objetivo semanal ni para el saldo.</p>
       </details>

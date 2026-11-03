@@ -4,6 +4,7 @@
 const TARGET_HOURS = { 0: 0, 1: 8.5, 2: 8.5, 3: 8.5, 4: 8.5, 5: 6, 6: 0 };
 const STORAGE_KEY = 'fichaje.events.v1';
 const DAYS_OFF_KEY = 'fichaje.daysoff.v1';
+const TODOS_KEY = 'fichaje.todos.v1';
 const HOUR = 3600000;
 
 const EVENT_TYPES = ['in', 'pause', 'resume', 'out'];
@@ -54,8 +55,39 @@ function saveDaysOff() {
   localStorage.setItem(DAYS_OFF_KEY, JSON.stringify(daysOff));
 }
 
+// Tareas por día: { 'AAAA-MM-DD': [{ id, text, done }] }
+function loadTodos() {
+  try {
+    return cleanTodos(JSON.parse(localStorage.getItem(TODOS_KEY) || '{}'));
+  } catch {
+    return {};
+  }
+}
+
+function cleanTodos(data) {
+  const out = {};
+  if (data && typeof data === 'object' && !Array.isArray(data)) {
+    for (const [k, list] of Object.entries(data)) {
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(k) || !Array.isArray(list)) continue;
+      const items = list
+        .filter((x) => x && typeof x.text === 'string')
+        .map((x) => ({ id: x.id || newId(), text: x.text, done: !!x.done }));
+      if (items.length) out[k] = items;
+    }
+  }
+  return out;
+}
+
+function saveTodos() {
+  for (const k of Object.keys(todos)) if (!todos[k].length) delete todos[k];
+  localStorage.setItem(TODOS_KEY, JSON.stringify(todos));
+}
+
+const newId = () => (crypto.randomUUID ? crypto.randomUUID() : String(Date.now()) + Math.random());
+
 let events = loadEvents();
 let daysOff = loadDaysOff();
+let todos = loadTodos();
 
 // ---------- Utilidades de fecha ----------
 
@@ -171,7 +203,7 @@ function punch(type) {
 }
 
 function addEvent(type, ts) {
-  events.push({ id: crypto.randomUUID ? crypto.randomUUID() : String(ts) + Math.random(), type, ts });
+  events.push({ id: newId(), type, ts });
   events.sort((a, b) => a.ts - b.ts);
   saveEvents();
   render();
@@ -364,6 +396,124 @@ function renderTable() {
   $('records-empty').classList.toggle('hidden', keys.length > 0);
 }
 
+// ---------- Tareas ----------
+
+// Desplazamiento en días respecto a hoy del día que se muestra en la lista de tareas
+let todoOffset = 0;
+
+function todoKey() {
+  const d = new Date();
+  d.setDate(d.getDate() + todoOffset);
+  return dayKey(d.getTime());
+}
+
+function shortDate(key) {
+  const date = keyToDate(key);
+  const weekday = new Intl.DateTimeFormat(locale(), { weekday: 'short' }).format(date);
+  return `${weekday} ${pad(date.getDate())}/${pad(date.getMonth() + 1)}`;
+}
+
+// Último día anterior a `key` con tareas sin hacer
+function previousPending(key) {
+  const prev = Object.keys(todos).filter((k) => k < key).sort().reverse();
+  for (const k of prev) {
+    const pending = todos[k].filter((x) => !x.done);
+    if (pending.length) return { key: k, pending };
+  }
+  return null;
+}
+
+function addTodo(text) {
+  const key = todoKey();
+  (todos[key] ||= []).push({ id: newId(), text, done: false });
+  saveTodos();
+  renderTodos();
+}
+
+function updateTodo(key, id, changes) {
+  const item = (todos[key] || []).find((x) => x.id === id);
+  if (!item) return;
+  Object.assign(item, changes);
+  saveTodos();
+}
+
+function removeTodo(key, id) {
+  todos[key] = (todos[key] || []).filter((x) => x.id !== id);
+  saveTodos();
+  renderTodos();
+}
+
+// Mueve las tareas pendientes del último día con pendientes al día mostrado
+function carryTodos() {
+  const key = todoKey();
+  const from = previousPending(key);
+  if (!from) return;
+  todos[from.key] = todos[from.key].filter((x) => x.done);
+  (todos[key] ||= []).push(...from.pending);
+  saveTodos();
+  renderTodos();
+}
+
+function renderTodos() {
+  const key = todoKey();
+  const list = todos[key] || [];
+  $('todo-day').textContent = todoOffset === 0 ? `${t('todo.today')} · ${shortDate(key)}` : shortDate(key);
+
+  const ul = $('todo-list');
+  ul.innerHTML = '';
+  for (const item of list) {
+    const li = document.createElement('li');
+    li.className = 'todo-item' + (item.done ? ' done' : '');
+
+    const check = document.createElement('input');
+    check.type = 'checkbox';
+    check.checked = item.done;
+    check.addEventListener('change', () => {
+      updateTodo(key, item.id, { done: check.checked });
+      li.classList.toggle('done', check.checked);
+      renderTodoFoot();
+    });
+
+    // El texto se edita en el sitio y se guarda mientras se escribe
+    const text = document.createElement('input');
+    text.type = 'text';
+    text.className = 'todo-text';
+    text.value = item.text;
+    text.maxLength = 200;
+    text.addEventListener('input', () => updateTodo(key, item.id, { text: text.value }));
+    text.addEventListener('keydown', (ev) => {
+      if (ev.key === 'Enter') text.blur();
+    });
+    text.addEventListener('blur', () => {
+      if (!text.value.trim()) removeTodo(key, item.id);
+    });
+
+    const del = document.createElement('button');
+    del.className = 'todo-del';
+    del.textContent = '✕';
+    del.title = t('todo.delete');
+    del.setAttribute('aria-label', t('todo.delete'));
+    del.addEventListener('click', () => removeTodo(key, item.id));
+
+    li.append(check, text, del);
+    ul.appendChild(li);
+  }
+  $('todo-empty').classList.toggle('hidden', list.length > 0);
+  renderTodoFoot();
+}
+
+function renderTodoFoot() {
+  const key = todoKey();
+  const list = todos[key] || [];
+  const done = list.filter((x) => x.done).length;
+  $('todo-count').textContent = list.length ? t('todo.count', { done, total: list.length }) : '';
+
+  const from = todoOffset >= 0 ? previousPending(key) : null;
+  const carry = $('todo-carry');
+  carry.classList.toggle('hidden', !from);
+  if (from) carry.textContent = t('todo.carry', { n: from.pending.length, date: shortDate(from.key) });
+}
+
 // Días del mes con fichajes o marcados como festivo/vacaciones
 function monthKeys(month) {
   return [...new Set([...events.map((e) => dayKey(e.ts)), ...Object.keys(daysOff)])]
@@ -405,7 +555,7 @@ function exportCsv() {
 }
 
 function exportJson() {
-  download(`fichajes-backup-${dayKey(Date.now())}.json`, JSON.stringify({ version: 2, events, daysOff }, null, 2), 'application/json');
+  download(`fichajes-backup-${dayKey(Date.now())}.json`, JSON.stringify({ version: 3, events, daysOff, todos }, null, 2), 'application/json');
 }
 
 function importJson(file) {
@@ -418,12 +568,16 @@ function importJson(file) {
       if (!Array.isArray(list)) throw new Error('formato');
       const valid = list.filter(isValidEvent);
       const newDaysOff = cleanDaysOff(Array.isArray(data) ? {} : data.daysOff);
+      const newTodos = cleanTodos(Array.isArray(data) ? {} : data.todos);
       if (!confirm(t('confirmImport', { n: valid.length, d: Object.keys(newDaysOff).length }))) return;
       events = valid.map((e) => ({ id: e.id || String(e.ts) + Math.random(), type: e.type, ts: e.ts })).sort((a, b) => a.ts - b.ts);
       daysOff = newDaysOff;
+      todos = newTodos;
       saveEvents();
       saveDaysOff();
+      saveTodos();
       render();
+      renderTodos();
     } catch {
       alert(t('importError'));
     }
@@ -441,6 +595,7 @@ function init() {
   langSelect.addEventListener('change', () => {
     setLang(langSelect.value);
     render();
+    renderTodos();
   });
   applyTranslations();
 
@@ -476,14 +631,45 @@ function init() {
     addEvent($('manual-type').value, ts);
   });
 
-  $('dayoff-form').addEventListener('submit', (ev) => {
-    ev.preventDefault();
+  // Festivos: el selector muestra la marca de la fecha elegida y se guarda al cambiarlo
+  const syncDayOffType = () => {
+    $('dayoff-type').value = daysOff[$('dayoff-date').value] || '';
+  };
+  let savedTimer;
+  $('dayoff-form').addEventListener('submit', (ev) => ev.preventDefault());
+  $('dayoff-date').addEventListener('change', syncDayOffType);
+  $('dayoff-type').addEventListener('change', () => {
     const key = $('dayoff-date').value;
     if (!key) return;
     setDayOff(key, $('dayoff-type').value || null);
     $('month').value = key.slice(0, 7);
     renderTable();
+    $('dayoff-saved').classList.remove('hidden');
+    clearTimeout(savedTimer);
+    savedTimer = setTimeout(() => $('dayoff-saved').classList.add('hidden'), 2000);
   });
+  syncDayOffType();
+
+  $('todo-form').addEventListener('submit', (ev) => {
+    ev.preventDefault();
+    const text = $('todo-input').value.trim();
+    if (!text) return;
+    addTodo(text);
+    $('todo-input').value = '';
+  });
+  $('todo-prev').addEventListener('click', () => {
+    todoOffset--;
+    renderTodos();
+  });
+  $('todo-next').addEventListener('click', () => {
+    todoOffset++;
+    renderTodos();
+  });
+  $('todo-day').addEventListener('click', () => {
+    todoOffset = 0;
+    renderTodos();
+  });
+  $('todo-carry').addEventListener('click', carryTodos);
 
   $('export-csv').addEventListener('click', exportCsv);
   $('export-json').addEventListener('click', exportJson);
@@ -499,17 +685,29 @@ function init() {
       $('lang').value = lang;
       applyTranslations();
       render();
+      renderTodos();
     } else if (ev.key === STORAGE_KEY || ev.key === DAYS_OFF_KEY) {
       events = loadEvents();
       daysOff = loadDaysOff();
       render();
+    } else if (ev.key === TODOS_KEY && !document.activeElement?.classList.contains('todo-text')) {
+      todos = loadTodos();
+      renderTodos();
     }
   });
 
   render();
+  renderTodos();
   setInterval(renderToday, 1000);
-  // Refresca la tabla cada minuto para que el día en curso se actualice
-  setInterval(renderTable, 60000);
+  // Refresca cada minuto para que el día en curso (y el cambio de día) se actualicen
+  let lastDay = dayKey(Date.now());
+  setInterval(() => {
+    renderTable();
+    if (dayKey(Date.now()) !== lastDay) {
+      lastDay = dayKey(Date.now());
+      if (!document.activeElement?.classList.contains('todo-text')) renderTodos();
+    }
+  }, 60000);
 
   if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {
     navigator.serviceWorker.register('sw.js').catch(() => {});
