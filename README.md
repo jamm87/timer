@@ -14,6 +14,7 @@ Funciona como **extensión de Chrome** y como **webapp instalable (PWA)**. No ne
 
 - **Cuenta atrás.** El reloj principal muestra el tiempo que falta para completar la jornada (y las horas extra cuando te pasas). Pulsándolo cambia a tiempo trabajado.
 - **Copia automática en un fichero.** Cada cambio se guarda también en un fichero JSON de tu ordenador, así los datos no se pierden aunque el navegador borre su almacenamiento.
+- **Sincronización entre dispositivos.** Con un token de tu cuenta de GitHub, los datos se guardan en un Gist secreto y se ven en el ordenador y en el móvil. Los cambios de cada dispositivo se fusionan, también los hechos sin conexión.
 - **Fichaje en un clic.** Solo se activan los botones válidos en cada momento: no se puede pausar sin haber entrado, ni reanudar sin estar en pausa.
 - **Barra de progreso diaria** con el tiempo consumido, el restante y la hora estimada de salida. Si te pasas, el exceso aparece como horas extra.
 - **Cómputo semanal** frente al objetivo de la semana.
@@ -69,6 +70,20 @@ python3 -m http.server 8000
 - Al volver a abrir la app, Chrome puede pedir de nuevo permiso para escribir en el fichero: pulsa *Reactivar* y elige *Permitir en cada visita*.
 - En navegadores sin esta función (Safari, Firefox, móviles) los datos solo están en el navegador: exporta copias JSON a mano.
 
+## Sincronizar entre dispositivos
+
+Los datos se guardan en un Gist secreto de tu cuenta de GitHub. No hace falta servidor ni base de datos.
+
+1. En GitHub, crea un token en *Settings → Developer settings → Personal access tokens → Fine-grained tokens* ([enlace directo](https://github.com/settings/personal-access-tokens/new)). En *Account permissions*, pon **Gists: Read and write**. No hace falta dar acceso a ningún repositorio.
+2. En la app, abre **Sincronizar entre dispositivos**, pega el token y pulsa **Conectar**.
+3. Repite el paso 2 en cada dispositivo con el mismo token. El primero crea el Gist; los demás lo encuentran solos.
+
+La app sincroniza al abrirse, al volver a ella, un par de segundos después de cada cambio y cada minuto. Arriba se ve el estado (`☁ Sincronizado · 11:20`).
+
+- El token se guarda en el navegador de cada dispositivo y no se sube al Gist. **Desconectar** lo borra de ese dispositivo.
+- Un Gist secreto no aparece en listados, pero quien tenga su URL puede leerlo. Contiene las horas de fichaje, los festivos y las tareas.
+- Si el token caduca o lo revocas, la app avisa y basta con conectar con uno nuevo.
+
 ## Estructura
 
 ```
@@ -76,6 +91,8 @@ index.html            Interfaz
 styles.css            Estilos (claro/oscuro, RTL)
 app.js                Lógica: fichajes, cálculos, tabla, exportación
 i18n.js               Traducciones (es, en, fr, ar, zh)
+merge.js              Fusión de datos entre dispositivos
+sync.js               Sincronización con un Gist de GitHub
 backup.js             Copia automática en un fichero del ordenador
 DESIGN.md             Sistema de diseño Skylearn (referencia)
 sw.js                 Service worker (uso sin conexión)
@@ -104,6 +121,7 @@ Para añadir un idioma, añade una entrada en `LANGS` y `STRINGS` en [`i18n.js`]
 - Holidays and vacation days count as 0h.
 - A small daily to-do list, with a button to bring over unfinished tasks from the previous day.
 - Everything is saved automatically, with an optional automatic backup to a file on your computer (Chrome/Edge desktop).
+- Optional sync across devices through a secret Gist in your GitHub account (paste a token with the Gists permission on each device).
 - The main clock counts down the time left in the workday.
 - Manual entries, CSV export and JSON backup/restore.
 - Available in Spanish, English, French, Arabic and Chinese.

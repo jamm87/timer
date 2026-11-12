@@ -358,3 +358,13 @@ summary { cursor: pointer; font-weight: 600; padding: 4px 0; }
 
 .saved { color: var(--pos); font-size: 0.85rem; align-self: center; }
 .backup button { background: var(--card); white-space: nowrap; }
+
+/* ---------- Sincronización ---------- */
+.sync-status { font-size: 0.85rem; color: var(--muted); padding: 0 12px; }
+.sync-status::before { content: '☁ '; }
+.sync-ok::before { color: var(--pos); }
+.sync-msg.sync-auth, .sync-msg.sync-error, .sync-status.sync-auth, .sync-status.sync-error { color: var(--neg); }
+.sync-msg.sync-offline, .sync-status.sync-offline { color: var(--pause); }
+.sync-msg { margin: 6px 0; }
+.sync-token { flex: 1; min-width: 180px; }
+#sync-box a { color: var(--accent); }
