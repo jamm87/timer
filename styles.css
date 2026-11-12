@@ -248,6 +248,21 @@ input, select {
 }
 .tag.holiday { background: var(--extra); }
 .tag.vacation { background: var(--resume); }
+.tag.other { background: var(--muted); }
+.tag-del {
+  border: 0;
+  background: rgba(0, 0, 0, .2);
+  color: #fff;
+  border-radius: 999px;
+  width: 16px;
+  height: 16px;
+  margin-inline-start: 6px;
+  padding: 0;
+  font-size: 0.6rem;
+  line-height: 1;
+  cursor: pointer;
+  vertical-align: middle;
+}
 
 .day-off-actions { display: flex; gap: 6px; margin-top: 8px; }
 .ghost.small { font-size: 0.8rem; padding: 4px 10px; }

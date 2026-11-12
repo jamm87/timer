@@ -1,13 +1,13 @@
 // Service worker: permite usar la webapp sin conexión.
 // Al publicar cambios, sube la versión aquí y en los ?v= de index.html.
-const CACHE = 'fichaje-v6';
+const CACHE = 'fichaje-v7';
 const ASSETS = [
   './',
   'index.html',
-  'styles.css?v=6',
-  'i18n.js?v=6',
-  'app.js?v=6',
-  'backup.js?v=6',
+  'styles.css?v=7',
+  'i18n.js?v=7',
+  'app.js?v=7',
+  'backup.js?v=7',
   'manifest.webmanifest',
   'icons/icon-32.png',
   'icons/icon-192.png',
