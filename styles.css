@@ -87,7 +87,38 @@ h2 { margin: 0; font-size: 1.1rem; }
   padding: 16px;
 }
 
-.clock { text-align: center; margin-bottom: 12px; }
+.clock {
+  display: block;
+  width: 100%;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+  text-align: center;
+  margin-bottom: 12px;
+}
+.clock-big.overtime { color: var(--extra); }
+
+.backup {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border-radius: 10px;
+  font-size: 0.85rem;
+  border: 1px solid var(--border);
+  color: var(--muted);
+}
+.backup:empty { display: none; }
+.backup > span { flex: 1; min-width: 200px; }
+.backup-none, .backup-paused, .backup-error, .backup-unsupported {
+  border-color: var(--pause);
+  color: var(--text);
+  background: color-mix(in srgb, var(--pause) 12%, transparent);
+}
+.backup-ok > span::before { content: '✓ '; color: var(--pos); font-weight: 700; }
 .clock-big {
   display: block;
   font-size: 2.6rem;
@@ -311,3 +342,4 @@ summary { cursor: pointer; font-weight: 600; padding: 4px 0; }
 }
 
 .saved { color: var(--pos); font-size: 0.85rem; align-self: center; }
+.backup button { background: var(--card); white-space: nowrap; }
