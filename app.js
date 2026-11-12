@@ -5,6 +5,8 @@ const TARGET_HOURS = { 0: 0, 1: 8.5, 2: 8.5, 3: 8.5, 4: 8.5, 5: 6, 6: 0 };
 const STORAGE_KEY = 'fichaje.events.v1';
 const DAYS_OFF_KEY = 'fichaje.daysoff.v1';
 const TODOS_KEY = 'fichaje.todos.v1';
+const UPDATED_KEY = 'fichaje.updated.v1';
+const CLOCK_KEY = 'fichaje.clock';
 const HOUR = 3600000;
 
 const EVENT_TYPES = ['in', 'pause', 'resume', 'out'];
@@ -25,6 +27,17 @@ function loadEvents() {
 
 function saveEvents() {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(events));
+  touch();
+}
+
+// Anota la hora del último cambio y lanza la copia automática al fichero
+function touch() {
+  localStorage.setItem(UPDATED_KEY, String(Date.now()));
+  if (typeof FileBackup !== 'undefined') FileBackup.schedule();
+}
+
+function localUpdatedAt() {
+  return Number(localStorage.getItem(UPDATED_KEY)) || 0;
 }
 
 function isValidEvent(e) {
@@ -53,6 +66,7 @@ function cleanDaysOff(data) {
 
 function saveDaysOff() {
   localStorage.setItem(DAYS_OFF_KEY, JSON.stringify(daysOff));
+  touch();
 }
 
 // Tareas por día: { 'AAAA-MM-DD': [{ id, text, done }] }
@@ -81,6 +95,7 @@ function cleanTodos(data) {
 function saveTodos() {
   for (const k of Object.keys(todos)) if (!todos[k].length) delete todos[k];
   localStorage.setItem(TODOS_KEY, JSON.stringify(todos));
+  touch();
 }
 
 const newId = () => (crypto.randomUUID ? crypto.randomUUID() : String(Date.now()) + Math.random());
@@ -235,6 +250,9 @@ function render() {
   renderTable();
 }
 
+// 'countdown' (tiempo que falta) o 'worked' (tiempo trabajado)
+let clockMode = localStorage.getItem(CLOCK_KEY) === 'worked' ? 'worked' : 'countdown';
+
 function renderToday() {
   const now = new Date();
   const today = computeDay(dayKey(now.getTime()), now.getTime());
@@ -253,12 +271,23 @@ function renderToday() {
   $('btn-resume').disabled = !allowed.includes('resume');
   $('btn-out').disabled = !allowed.includes('out');
 
-  $('worked-live').textContent = fmtClock(today.worked);
 
   // Barra de la jornada
   const target = today.target;
   const done = today.worked;
   const left = target - done;
+  // Reloj principal: cuenta atrás hasta completar la jornada, o tiempo trabajado
+  let clock = fmtClock(today.worked);
+  let clockLabel = t('workedToday');
+  if (clockMode === 'countdown' && target > 0) {
+    const secs = Math.ceil(Math.abs(left) / 1000) * 1000;
+    clock = left >= 0 ? fmtClock(secs) : `+${fmtClock(secs)}`;
+    clockLabel = left >= 0 ? t('clock.left') : t('clock.extra');
+  }
+  $('worked-live').textContent = clock;
+  $('worked-live').classList.toggle('overtime', target > 0 && left < 0);
+  $('clock-label').textContent = clockLabel;
+
   $('day-target').textContent = today.dayOff
     ? dayOffLabel(today.dayOff)
     : target ? t('target', { d: fmtDur(target) }) : t('nonWorkingDay');
@@ -308,7 +337,7 @@ function renderToday() {
   $('week-left').textContent = fmtDur(Math.max(weekTarget - weekDone, 0));
   $('week-fill').style.width = `${weekTarget ? Math.min(weekDone / weekTarget, 1) * 100 : 0}%`;
 
-  document.title = today.state === 'off' ? t('appName') : `${fmtClock(today.worked)} · ${t('appName')}`;
+  document.title = today.state === 'off' ? t('appName') : `${clock} · ${t('appName')}`;
 }
 
 function renderTable() {
@@ -554,30 +583,55 @@ function exportCsv() {
   download(`fichajes-${month}.csv`, '﻿' + csv, 'text/csv;charset=utf-8');
 }
 
+function snapshot() {
+  return { version: 3, updatedAt: localUpdatedAt(), events, daysOff, todos };
+}
+
+function hasData() {
+  return events.length > 0 || Object.keys(daysOff).length > 0 || Object.keys(todos).length > 0;
+}
+
+// Valida una copia. Acepta las antiguas (solo lista de fichajes) y las nuevas ({ events, daysOff, todos })
+function parseSnapshot(data) {
+  const list = Array.isArray(data) ? data : data && data.events;
+  if (!Array.isArray(list)) throw new Error('formato');
+  const full = Array.isArray(data) ? {} : data;
+  return {
+    updatedAt: Number(full.updatedAt) || 0,
+    events: list
+      .filter(isValidEvent)
+      .map((e) => ({ id: e.id || newId(), type: e.type, ts: e.ts }))
+      .sort((a, b) => a.ts - b.ts),
+    daysOff: cleanDaysOff(full.daysOff),
+    todos: cleanTodos(full.todos),
+  };
+}
+
+function applySnapshot(snap) {
+  events = snap.events;
+  daysOff = snap.daysOff;
+  todos = snap.todos;
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(events));
+  localStorage.setItem(DAYS_OFF_KEY, JSON.stringify(daysOff));
+  localStorage.setItem(TODOS_KEY, JSON.stringify(todos));
+  localStorage.setItem(UPDATED_KEY, String(snap.updatedAt || Date.now()));
+  render();
+  renderTodos();
+}
+
 function exportJson() {
-  download(`fichajes-backup-${dayKey(Date.now())}.json`, JSON.stringify({ version: 3, events, daysOff, todos }, null, 2), 'application/json');
+  download(`fichajes-backup-${dayKey(Date.now())}.json`, JSON.stringify(snapshot(), null, 2), 'application/json');
 }
 
 function importJson(file) {
   const reader = new FileReader();
   reader.onload = () => {
     try {
-      const data = JSON.parse(reader.result);
-      // Acepta copias antiguas (solo lista de fichajes) y nuevas ({ events, daysOff })
-      const list = Array.isArray(data) ? data : data && data.events;
-      if (!Array.isArray(list)) throw new Error('formato');
-      const valid = list.filter(isValidEvent);
-      const newDaysOff = cleanDaysOff(Array.isArray(data) ? {} : data.daysOff);
-      const newTodos = cleanTodos(Array.isArray(data) ? {} : data.todos);
-      if (!confirm(t('confirmImport', { n: valid.length, d: Object.keys(newDaysOff).length }))) return;
-      events = valid.map((e) => ({ id: e.id || String(e.ts) + Math.random(), type: e.type, ts: e.ts })).sort((a, b) => a.ts - b.ts);
-      daysOff = newDaysOff;
-      todos = newTodos;
-      saveEvents();
-      saveDaysOff();
-      saveTodos();
-      render();
-      renderTodos();
+      const snap = parseSnapshot(JSON.parse(reader.result));
+      if (!confirm(t('confirmImport', { n: snap.events.length, d: Object.keys(snap.daysOff).length }))) return;
+      // Una copia restaurada a mano pasa a ser la versión más reciente
+      applySnapshot({ ...snap, updatedAt: Date.now() });
+      if (typeof FileBackup !== 'undefined') FileBackup.schedule();
     } catch {
       alert(t('importError'));
     }
@@ -596,6 +650,13 @@ function init() {
     setLang(langSelect.value);
     render();
     renderTodos();
+    FileBackup.renderStatus();
+  });
+
+  $('clock').addEventListener('click', () => {
+    clockMode = clockMode === 'countdown' ? 'worked' : 'countdown';
+    localStorage.setItem(CLOCK_KEY, clockMode);
+    renderToday();
   });
   applyTranslations();
 

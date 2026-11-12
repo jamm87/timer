@@ -12,6 +12,8 @@ Funciona como **extensión de Chrome** y como **webapp instalable (PWA)**. No ne
 
 ## Funcionalidades
 
+- **Cuenta atrás.** El reloj principal muestra el tiempo que falta para completar la jornada (y las horas extra cuando te pasas). Pulsándolo cambia a tiempo trabajado.
+- **Copia automática en un fichero.** Cada cambio se guarda también en un fichero JSON de tu ordenador, así los datos no se pierden aunque el navegador borre su almacenamiento.
 - **Fichaje en un clic.** Solo se activan los botones válidos en cada momento: no se puede pausar sin haber entrado, ni reanudar sin estar en pausa.
 - **Barra de progreso diaria** con el tiempo consumido, el restante y la hora estimada de salida. Si te pasas, el exceso aparece como horas extra.
 - **Cómputo semanal** frente al objetivo de la semana.
@@ -62,7 +64,10 @@ python3 -m http.server 8000
 
 - Todo se guarda en el `localStorage` del navegador. No se envía nada a ningún servidor.
 - La extensión y la webapp tienen almacenamientos independientes. Para pasar los datos de una a otra, usa *Copia completa (JSON)* y *Restaurar JSON*.
-- Si borras los datos de navegación, se pierden los registros. Haz copias de seguridad de vez en cuando.
+- **Copia automática (recomendado).** En Chrome o Edge de escritorio, pulsa *Guardar en un fichero* en el aviso superior y elige dónde guardarlo (por ejemplo, una carpeta de iCloud Drive o Google Drive). Desde ese momento cada cambio se escribe también en ese fichero.
+- Si el navegador borra los datos, pulsa *Abrir fichero existente*, elige el fichero y se recupera todo.
+- Al volver a abrir la app, Chrome puede pedir de nuevo permiso para escribir en el fichero: pulsa *Reactivar* y elige *Permitir en cada visita*.
+- En navegadores sin esta función (Safari, Firefox, móviles) los datos solo están en el navegador: exporta copias JSON a mano.
 
 ## Estructura
 
@@ -71,6 +76,8 @@ index.html            Interfaz
 styles.css            Estilos (claro/oscuro, RTL)
 app.js                Lógica: fichajes, cálculos, tabla, exportación
 i18n.js               Traducciones (es, en, fr, ar, zh)
+backup.js             Copia automática en un fichero del ordenador
+DESIGN.md             Sistema de diseño Skylearn (referencia)
 sw.js                 Service worker (uso sin conexión)
 manifest.webmanifest  Manifiesto de la PWA
 manifest.json         Manifiesto de la extensión de Chrome (MV3)
@@ -96,7 +103,8 @@ Para añadir un idioma, añade una entrada en `LANGS` y `STRINGS` en [`i18n.js`]
 - Workday: 8h 30m Monday to Thursday, 6h on Friday (configurable in `TARGET_HOURS` in `app.js`).
 - Holidays and vacation days count as 0h.
 - A small daily to-do list, with a button to bring over unfinished tasks from the previous day.
-- Everything is saved automatically.
+- Everything is saved automatically, with an optional automatic backup to a file on your computer (Chrome/Edge desktop).
+- The main clock counts down the time left in the workday.
 - Manual entries, CSV export and JSON backup/restore.
 - Available in Spanish, English, French, Arabic and Chinese.
 - Works as a Chrome extension (load the folder unpacked from `chrome://extensions`) and as an installable, offline-capable PWA: https://jamm87.github.io/timer/
