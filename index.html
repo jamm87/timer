@@ -8,7 +8,7 @@
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="icon" href="icons/icon-32.png" sizes="32x32">
   <link rel="apple-touch-icon" href="icons/icon-192.png">
-  <link rel="stylesheet" href="styles.css?v=7">
+  <link rel="stylesheet" href="styles.css?v=8">
 </head>
 <body>
   <main class="app">
@@ -28,6 +28,7 @@
     </header>
 
     <div id="backup" class="backup" role="status"></div>
+    <div id="sync-status" class="sync-status hidden" role="status"></div>
 
     <section class="card">
       <button type="button" id="clock" class="clock" data-i18n-title="clock.toggle" title="Pulsa para cambiar entre cuenta atrás y tiempo trabajado">
@@ -149,6 +150,10 @@
         </form>
         <p class="muted small" data-i18n="dayoff.hint">Un día festivo o de vacaciones tiene jornada 0h: no cuenta para el objetivo semanal ni para el saldo.</p>
       </details>
+      <details id="sync-details">
+        <summary data-i18n="sync.title">Sincronizar entre dispositivos</summary>
+        <div id="sync-box"></div>
+      </details>
       <details>
         <summary data-i18n="export.title">Exportar / copia de seguridad</summary>
         <div class="manual">
@@ -164,8 +169,10 @@
     </section>
   </main>
 
-  <script src="i18n.js?v=7"></script>
-  <script src="app.js?v=7"></script>
-  <script src="backup.js?v=7"></script>
+  <script src="merge.js?v=8"></script>
+  <script src="i18n.js?v=8"></script>
+  <script src="app.js?v=8"></script>
+  <script src="sync.js?v=8"></script>
+  <script src="backup.js?v=8"></script>
 </body>
 </html>

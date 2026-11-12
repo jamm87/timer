@@ -58,18 +58,19 @@ const FileBackup = (() => {
     renderStatus();
   }
 
-  // Se queda con la versión más reciente: la del fichero o la del navegador
+  // Fusiona lo que hay en el fichero con lo de este navegador y guarda el resultado
   async function sync() {
     const file = await readFile();
-    if (file && file.updatedAt > localUpdatedAt()) {
-      applySnapshot(file);
-      notice = t('backup.restored', { name: handle.name });
-      status = 'ok';
-      lastSaved = Date.now();
-      renderStatus();
-    } else {
-      await write();
+    if (file) {
+      const local = snapshot();
+      const merged = mergeSnapshots(local, file);
+      if (!sameData(merged, local)) {
+        if (!hasData()) notice = t('backup.restored', { name: handle.name });
+        applySnapshot({ ...merged, updatedAt: Math.max(local.updatedAt, file.updatedAt) });
+        if (typeof CloudSync !== 'undefined') CloudSync.schedule();
+      }
     }
+    await write();
   }
 
   function schedule() {
@@ -109,8 +110,9 @@ const FileBackup = (() => {
       await link(h);
       status = 'ok';
       if (file) {
-        applySnapshot(file);
+        applySnapshot(asRestore(file));
         notice = t('backup.restored', { name: h.name });
+        if (typeof CloudSync !== 'undefined') CloudSync.schedule();
       }
       await write();
     } catch (err) {
@@ -157,8 +159,15 @@ const FileBackup = (() => {
     };
     const buttons = [];
 
-    if (!supported) {
+    if (!supported && CloudSync.connected()) {
+      box.className = 'backup hidden';
+      return;
+    } else if (!supported) {
       text.textContent = t('backup.unsupported');
+    } else if (status === 'none' && CloudSync.connected()) {
+      // Con la sincronización activa los datos ya tienen copia fuera del navegador
+      box.className = 'backup hidden';
+      return;
     } else if (status === 'none') {
       text.textContent = t('backup.warn');
       // El selector de ficheros cerraría el panel de la extensión: se abre en pestaña

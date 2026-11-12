@@ -6,6 +6,7 @@ const STORAGE_KEY = 'fichaje.events.v1';
 const DAYS_OFF_KEY = 'fichaje.daysoff.v1';
 const TODOS_KEY = 'fichaje.todos.v1';
 const UPDATED_KEY = 'fichaje.updated.v1';
+const META_KEY = 'fichaje.meta.v1';
 const CLOCK_KEY = 'fichaje.clock';
 const HOUR = 3600000;
 
@@ -30,10 +31,39 @@ function saveEvents() {
   touch();
 }
 
-// Anota la hora del último cambio y lanza la copia automática al fichero
+// Anota la hora del último cambio y lanza la copia en fichero y la sincronización
 function touch() {
   localStorage.setItem(UPDATED_KEY, String(Date.now()));
+  scheduleCopies();
+}
+
+function scheduleCopies() {
   if (typeof FileBackup !== 'undefined') FileBackup.schedule();
+  if (typeof CloudSync !== 'undefined') CloudSync.schedule();
+}
+
+// Datos auxiliares para fusionar con otros dispositivos (ver merge.js):
+// qué se ha borrado y cuándo se cambió la marca de cada día
+function loadMeta() {
+  try {
+    return cleanMeta(JSON.parse(localStorage.getItem(META_KEY) || '{}'));
+  } catch {
+    return emptyMeta();
+  }
+}
+
+function cleanMeta(data) {
+  const out = emptyMeta();
+  for (const field of ['deleted', 'daysOff']) {
+    const src = data && data[field];
+    if (!src || typeof src !== 'object') continue;
+    for (const [k, ts] of Object.entries(src)) if (typeof ts === 'number') out[field][k] = ts;
+  }
+  return out;
+}
+
+function saveMeta() {
+  localStorage.setItem(META_KEY, JSON.stringify(meta));
 }
 
 function localUpdatedAt() {
@@ -85,7 +115,7 @@ function cleanTodos(data) {
       if (!/^\d{4}-\d{2}-\d{2}$/.test(k) || !Array.isArray(list)) continue;
       const items = list
         .filter((x) => x && typeof x.text === 'string')
-        .map((x) => ({ id: x.id || newId(), text: x.text, done: !!x.done }));
+        .map((x) => ({ id: x.id || newId(), text: x.text, done: !!x.done, u: Number(x.u) || 0 }));
       if (items.length) out[k] = items;
     }
   }
@@ -103,6 +133,7 @@ const newId = () => (crypto.randomUUID ? crypto.randomUUID() : String(Date.now()
 let events = loadEvents();
 let daysOff = loadDaysOff();
 let todos = loadTodos();
+let meta = loadMeta();
 
 // ---------- Utilidades de fecha ----------
 
@@ -232,6 +263,8 @@ function syncDayOffType() {
 function setDayOff(key, type) {
   if (type) daysOff[key] = type;
   else delete daysOff[key];
+  meta.daysOff[key] = Date.now();
+  saveMeta();
   saveDaysOff();
   render();
 }
@@ -241,6 +274,8 @@ function deleteEvent(id) {
   if (!e) return;
   if (!confirm(t('confirmDelete', { type: typeLabel(e.type), time: fmtTime(e.ts) }))) return;
   events = events.filter((x) => x.id !== id);
+  meta.deleted[id] = Date.now();
+  saveMeta();
   saveEvents();
   render();
 }
@@ -470,7 +505,7 @@ function previousPending(key) {
 
 function addTodo(text) {
   const key = todoKey();
-  (todos[key] ||= []).push({ id: newId(), text, done: false });
+  (todos[key] ||= []).push({ id: newId(), text, done: false, u: Date.now() });
   saveTodos();
   renderTodos();
 }
@@ -478,12 +513,14 @@ function addTodo(text) {
 function updateTodo(key, id, changes) {
   const item = (todos[key] || []).find((x) => x.id === id);
   if (!item) return;
-  Object.assign(item, changes);
+  Object.assign(item, changes, { u: Date.now() });
   saveTodos();
 }
 
 function removeTodo(key, id) {
   todos[key] = (todos[key] || []).filter((x) => x.id !== id);
+  meta.deleted[id] = Date.now();
+  saveMeta();
   saveTodos();
   renderTodos();
 }
@@ -494,7 +531,8 @@ function carryTodos() {
   const from = previousPending(key);
   if (!from) return;
   todos[from.key] = todos[from.key].filter((x) => x.done);
-  (todos[key] ||= []).push(...from.pending);
+  const now = Date.now();
+  (todos[key] ||= []).push(...from.pending.map((x) => ({ ...x, u: now })));
   saveTodos();
   renderTodos();
 }
@@ -600,7 +638,7 @@ function exportCsv() {
 }
 
 function snapshot() {
-  return { version: 3, updatedAt: localUpdatedAt(), events, daysOff, todos };
+  return { version: 4, updatedAt: localUpdatedAt(), events, daysOff, todos, meta };
 }
 
 function hasData() {
@@ -620,6 +658,7 @@ function parseSnapshot(data) {
       .sort((a, b) => a.ts - b.ts),
     daysOff: cleanDaysOff(full.daysOff),
     todos: cleanTodos(full.todos),
+    meta: cleanMeta(full.meta),
   };
 }
 
@@ -627,12 +666,34 @@ function applySnapshot(snap) {
   events = snap.events;
   daysOff = snap.daysOff;
   todos = snap.todos;
+  meta = cleanMeta(snap.meta);
+  saveMeta();
   localStorage.setItem(STORAGE_KEY, JSON.stringify(events));
   localStorage.setItem(DAYS_OFF_KEY, JSON.stringify(daysOff));
   localStorage.setItem(TODOS_KEY, JSON.stringify(todos));
   localStorage.setItem(UPDATED_KEY, String(snap.updatedAt || Date.now()));
   render();
   renderTodos();
+}
+
+// Prepara una copia restaurada a mano para que gane también en los demás dispositivos:
+// lo que había y no está en la copia queda borrado, y lo que estaba borrado vuelve con id nuevo
+function asRestore(snap) {
+  const now = Date.now();
+  const deleted = { ...meta.deleted };
+  const allIds = (s) => [...s.events.map((e) => e.id), ...Object.values(s.todos).flat().map((x) => x.id)];
+  const kept = new Set(allIds(snap));
+  for (const id of allIds({ events, todos })) if (!kept.has(id)) deleted[id] = now;
+  const revive = (x) => (deleted[x.id] ? { ...x, id: newId() } : x);
+  const dayMeta = {};
+  for (const k of [...Object.keys(daysOff), ...Object.keys(snap.daysOff), ...Object.keys(meta.daysOff)]) dayMeta[k] = now;
+  return {
+    updatedAt: now,
+    events: snap.events.map(revive),
+    daysOff: snap.daysOff,
+    todos: Object.fromEntries(Object.entries(snap.todos).map(([k, list]) => [k, list.map((x) => ({ ...revive(x), u: now }))])),
+    meta: { deleted, daysOff: dayMeta },
+  };
 }
 
 function exportJson() {
@@ -645,9 +706,8 @@ function importJson(file) {
     try {
       const snap = parseSnapshot(JSON.parse(reader.result));
       if (!confirm(t('confirmImport', { n: snap.events.length, d: Object.keys(snap.daysOff).length }))) return;
-      // Una copia restaurada a mano pasa a ser la versión más reciente
-      applySnapshot({ ...snap, updatedAt: Date.now() });
-      if (typeof FileBackup !== 'undefined') FileBackup.schedule();
+      applySnapshot(asRestore(snap));
+      scheduleCopies();
     } catch {
       alert(t('importError'));
     }
@@ -667,6 +727,7 @@ function init() {
     render();
     renderTodos();
     FileBackup.renderStatus();
+    CloudSync.renderStatus();
   });
 
   $('clock').addEventListener('click', () => {
@@ -760,6 +821,8 @@ function init() {
       applyTranslations();
       render();
       renderTodos();
+    } else if (ev.key === META_KEY) {
+      meta = loadMeta();
     } else if (ev.key === STORAGE_KEY || ev.key === DAYS_OFF_KEY) {
       events = loadEvents();
       daysOff = loadDaysOff();
