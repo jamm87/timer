@@ -10,7 +10,7 @@ const CLOCK_KEY = 'fichaje.clock';
 const HOUR = 3600000;
 
 const EVENT_TYPES = ['in', 'pause', 'resume', 'out'];
-const DAY_OFF_TYPES = ['holiday', 'vacation'];
+const DAY_OFF_TYPES = ['holiday', 'vacation', 'other'];
 const typeLabel = (type) => t(`type.${type}`);
 const dayOffLabel = (type) => t(`dayoff.${type}`);
 
@@ -224,6 +224,11 @@ function addEvent(type, ts) {
   render();
 }
 
+// El selector del formulario muestra siempre la marca actual de la fecha elegida
+function syncDayOffType() {
+  $('dayoff-type').value = daysOff[$('dayoff-date').value] || '';
+}
+
 function setDayOff(key, type) {
   if (type) daysOff[key] = type;
   else delete daysOff[key];
@@ -248,6 +253,7 @@ const expanded = new Set();
 function render() {
   renderToday();
   renderTable();
+  syncDayOffType();
 }
 
 // 'countdown' (tiempo que falta) o 'worked' (tiempo trabajado)
@@ -362,13 +368,23 @@ function renderTable() {
     const tr = document.createElement('tr');
     tr.className = 'day' + (key === todayKey ? ' today' : '');
     tr.innerHTML = `
-      <td>${weekday.format(date)} ${pad(date.getDate())}/${pad(date.getMonth() + 1)}${d.dayOff ? ` <span class="tag ${d.dayOff}">${dayOffLabel(d.dayOff)}</span>` : ''}</td>
+      <td>${weekday.format(date)} ${pad(date.getDate())}/${pad(date.getMonth() + 1)}${d.dayOff ? ` <span class="tag ${d.dayOff}">${dayOffLabel(d.dayOff)}<button class="tag-del">✕</button></span>` : ''}</td>
       <td>${d.firstIn ? fmtTime(d.firstIn) : '—'}</td>
       <td>${d.lastOut && d.state === 'off' ? fmtTime(d.lastOut) : d.open ? `<span class="warn">${t('noExit')}</span>` : '—'}</td>
       <td>${fmtDur(d.paused)}</td>
       <td>${fmtDur(d.worked)}</td>
       <td>${fmtDur(d.target)}</td>
       <td class="${balance >= 0 ? 'pos' : 'neg'}">${fmtSigned(balance)}</td>`;
+    // La ✕ de la etiqueta quita la marca de festivo/vacaciones/ausencia
+    const tagDel = tr.querySelector('.tag-del');
+    if (tagDel) {
+      tagDel.title = t('dayoff.remove');
+      tagDel.setAttribute('aria-label', t('dayoff.remove'));
+      tagDel.addEventListener('click', (ev) => {
+        ev.stopPropagation();
+        setDayOff(key, null);
+      });
+    }
     tr.addEventListener('click', () => {
       expanded.has(key) ? expanded.delete(key) : expanded.add(key);
       renderTable();
@@ -400,7 +416,7 @@ function renderTable() {
       offActions.className = 'day-off-actions';
       const options = d.dayOff
         ? [[null, t('dayoff.remove')]]
-        : [['holiday', t('dayoff.markHoliday')], ['vacation', t('dayoff.markVacation')]];
+        : [['holiday', t('dayoff.markHoliday')], ['vacation', t('dayoff.markVacation')], ['other', t('dayoff.markOther')]];
       for (const [type, label] of options) {
         const btn = document.createElement('button');
         btn.className = 'ghost small';
@@ -693,9 +709,6 @@ function init() {
   });
 
   // Festivos: el selector muestra la marca de la fecha elegida y se guarda al cambiarlo
-  const syncDayOffType = () => {
-    $('dayoff-type').value = daysOff[$('dayoff-date').value] || '';
-  };
   let savedTimer;
   $('dayoff-form').addEventListener('submit', (ev) => ev.preventDefault());
   $('dayoff-date').addEventListener('change', syncDayOffType);
